@@ -337,7 +337,7 @@ class SideBar extends TypedComponent {
         const layout = this.props.layout ?? this.state.layout;
         const smallThumbnails = observer.get('largeThumbnails') !== true;
         const panelOptions = {
-            headerText: `EXAMPLES - v${VERSION}`,
+            headerText: '3D 数字孪生',
             collapsible: true,
             collapsed: false,
             id: 'sideBar',
@@ -347,7 +347,7 @@ class SideBar extends TypedComponent {
             if (this.props.mobilePanel !== 'examples') {
                 return null;
             }
-            panelOptions.headerText = `EXAMPLES - v${VERSION}`;
+            panelOptions.headerText = '3D 数字孪生';
             panelOptions.class = ['mobile-sheet', 'small-thumbnails'];
             panelOptions.collapsible = false;
             panelOptions.collapsed = false;
@@ -362,7 +362,7 @@ class SideBar extends TypedComponent {
                 jsx(/** @type {any} */ (TextInput), {
                     class: 'filter-input',
                     keyChange: true,
-                    placeholder: 'Filter...',
+                    placeholder: '筛选...',
                     value: this.state.filterText,
                     onChange: this.onChangeFilter.bind(this)
                 }),
@@ -375,15 +375,15 @@ class SideBar extends TypedComponent {
                     '\u2715'
                 ) : null
             ),
-            layout !== 'mobile' && jsx(
+/*             layout !== 'mobile' && jsx(
                 LabelGroup,
-                { text: 'Large thumbnails:' },
+                { text: '显示缩略图:' },
                 jsx(BooleanInput, {
                     type: 'toggle',
                     binding: new BindingTwoWay(),
                     link: { observer, path: 'largeThumbnails' }
                 })
-            ),
+            ), */
             jsx(Container, { id: 'sideBar-contents' }, this.renderContents())
         );
     }

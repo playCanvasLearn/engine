@@ -11,24 +11,24 @@
     "background_color": "#171E20",
     "icons": [
         {
-            "src": "./icons/playcanvas-180.png",
+            "src": "./logo.png",
             "sizes": "180x180",
             "type": "image/png"
         },
         {
-            "src": "./icons/playcanvas-192.png",
+            "src": "./logo.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "./icons/playcanvas-512.png",
+            "src": "./logo.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "./icons/playcanvas-maskable-512.png",
+            "src": "./logo.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"

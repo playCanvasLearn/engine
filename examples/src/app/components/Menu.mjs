@@ -213,14 +213,14 @@ class Menu extends TypedComponent {
                 {
                     id: 'menu-buttons'
                 },
-                jsx('img', {
+                /* jsx('img', {
                     id: 'playcanvas-icon',
                     src: logo,
                     onClick: () => {
                         window.open('https://github.com/playcanvas/engine');
                     }
-                }),
-                jsx('button', {
+                }), */
+/*                 jsx('button', {
                     type: 'button',
                     id: 'shareButton',
                     className: 'pcui-button',
@@ -242,7 +242,7 @@ class Menu extends TypedComponent {
                 jsx('circle', { cx: 18, cy: 19, r: 3 }),
                 jsx('line', { x1: 8.59, y1: 13.51, x2: 15.42, y2: 17.49 }),
                 jsx('line', { x1: 15.41, y1: 6.51, x2: 8.59, y2: 10.49 })
-                )),
+                )), */
                 jsx(Button, {
                     icon: 'E149',
                     id: 'showMiniStatsButton',

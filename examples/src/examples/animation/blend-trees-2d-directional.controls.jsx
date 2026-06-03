@@ -58,7 +58,7 @@ export function Controls({ observer }) {
                 ctx.fill();
             });
 
-            ctx.fillStyle = '#F60';
+            ctx.fillStyle = '#3346e8';
             ctx.beginPath();
             ctx.arc((pos.x + 1) * halfWidth, (pos.y * -1 + 1) * halfHeight, 5, 0, 2 * Math.PI);
             ctx.fill();

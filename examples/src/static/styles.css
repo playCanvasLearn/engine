@@ -120,7 +120,7 @@ body {
 #appInner.mobile .sideBar-panel-toggle {
     display: none;
 }
-    
+
 
 #sideBar.collapsed ~ .sideBar-panel-toggle {
     left: 8px;
@@ -260,7 +260,7 @@ body {
     background-color: #20292B;
 }
 #sideBar .nav-item.selected .nav-item-text {
-    color: #F60 !important;
+    color: #3346e8 !important;
 }
 
 .nav-item:hover {
@@ -1000,7 +1000,7 @@ body {
     font-size: 14px;
     margin-right: 10px;
     text-align: center;
-    color: #f60;
+    color: #3346e8;
     position: absolute;
     left: 50%;
     top: 50%;
@@ -1062,7 +1062,7 @@ body {
 
 #codePane.collapsed #codePane-panel-toggle {
     margin-top: 0px;
-} 
+}
 
 #menu {
     display: flex;
@@ -1158,7 +1158,7 @@ body {
 #menu #showMiniStatsButton.selected,
 #menu #showCreditsButton.selected {
     color: white;
-    background-color: #F60;
+    background-color: #3346e8;
 }
 
 .share-dialog-backdrop {
@@ -1287,7 +1287,7 @@ body {
 
 .share-dialog-input:focus {
     outline: none;
-    border-color: #F60;
+    border-color: #3346e8;
 }
 
 .share-dialog-copy-button {
@@ -1299,7 +1299,7 @@ body {
     padding: 0 12px;
     border: none;
     border-radius: 4px;
-    background-color: #F60;
+    background-color: #3346e8;
     color: #ffffff;
     font-size: 12px;
     font-weight: 600;
@@ -1540,13 +1540,13 @@ body.mobile-panel-resizing #appInner.mobile-landscape #sideBar.mobile-sheet::aft
 #appInner.mobile #mobileDock .mobile-dock-button.selected.pcui-focus,
 #appInner.mobile #mobileDock .mobile-dock-button.selected:active {
     border: 0;
-    color: #F60 !important;
+    color: #3346e8 !important;
     background: transparent !important;
     background-image: none !important;
 }
 
 #appInner.mobile #mobileDock .mobile-dock-button.selected::before {
-    background-color: #F60;
+    background-color: #3346e8;
 }
 
 #appInner.mobile #mobileDock .mobile-dock-examples {
@@ -1630,7 +1630,7 @@ body.mobile-panel-resizing #appInner.mobile-landscape #sideBar.mobile-sheet::aft
 }
 
 #embed-button.selected {
-    background-color: #f60;
+    background-color: #3346e8;
     color: white;
 }
 
@@ -1689,7 +1689,7 @@ body.mobile-panel-resizing #appInner.mobile-landscape #sideBar.mobile-sheet::aft
 }
 
 #appInner.fullscreen #fullscreen-button {
-    background-color: #F60;
+    background-color: #3346e8;
     color: white;
 }
 
@@ -1706,4 +1706,12 @@ body.mobile-panel-resizing #appInner.mobile-landscape #sideBar.mobile-sheet::aft
 /* Prevent that number slider bar inputs are cropped */
 .pcui-slider > .pcui-numeric-input {
     flex: 1.5 !important;
+}
+
+.pcui-panel.pcui-collapsible > .pcui-panel-header::before {
+    content: "\e179";
+    font-size: 14px;
+    margin-right: 10px;
+    text-align: center;
+    color: #3346e8 !important;
 }

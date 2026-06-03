@@ -310,7 +310,7 @@ class MainLayout extends TypedComponent {
                                 jsx(
                                     Container,
                                     { id: 'main-view' },
-                                    layout === 'desktop' && jsx(CodeEditorDesktop),
+                                    //layout === 'desktop' && jsx(CodeEditorDesktop),
                                     jsx(Example, {
                                         layout,
                                         mobilePanel,

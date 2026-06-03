@@ -82,7 +82,7 @@ const STATIC_ROUTES = [
 ];
 const ROOT_FILES = {
     '/styles.css': 'src/static/styles.css',
-    '/playcanvas-logo.png': 'src/static/playcanvas-logo.png',
+    '/logo.png': 'src/static/logo.png',
     '/manifest.webmanifest': 'src/static/manifest.webmanifest',
     '/playcanvas.d.ts': '../build/playcanvas.d.ts'
 };

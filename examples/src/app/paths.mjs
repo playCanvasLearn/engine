@@ -10,4 +10,4 @@ export const iframePath = `${root}/iframe/`;
 
 export const thumbnailPath = `${root}/thumbnails/`;
 
-export const logo = `${root}/playcanvas-logo.png`;
+export const logo = `${root}/logo.png`;
