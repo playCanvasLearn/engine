@@ -1088,6 +1088,7 @@ class Example extends TypedComponent {
 
     render() {
         const { iframePath } = this;
+        const external = !!this.externalUrl;
         const { exampleLoaded, loadedPath, loadError, loadProgress, loadStage } = this.state;
         const error = loadError?.path === iframePath ? loadError : null;
         const loading = !error && (!exampleLoaded || loadedPath !== iframePath);
@@ -1204,9 +1205,9 @@ class Example extends TypedComponent {
                 src: iframePath,
                 onLoad: this._handleIframeLoad
             }),
-            layout !== 'mobile' && this.renderDescription(),
-            layout !== 'mobile' && this.renderCreditsOverlay(),
-            layout === 'mobile' ? this.renderMobile() : this.renderDesktop()
+            !external && layout !== 'mobile' && this.renderDescription(),
+            !external && layout !== 'mobile' && this.renderCreditsOverlay(),
+            !external && (layout === 'mobile' ? this.renderMobile() : this.renderDesktop())
         );
     }
 }

@@ -5,6 +5,7 @@ import { ShareDialog } from './ShareDialog.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx } from '../jsx.mjs';
 import { logo } from '../paths.mjs';
+import { exampleMetaData } from '../metadata.mjs';
 import { isMenuHiddenForPath } from '../menu-config.mjs';
 import { buildShareUrl, getHashPath, patchState, readState } from '../url-state.mjs';
 import { getLayout } from '../utils.mjs';
@@ -202,7 +203,14 @@ class Menu extends TypedComponent {
     }
 
     render() {
-        if (isMenuHiddenForPath(getHashPath())) {
+        const path = getHashPath();
+        const parts = path.split('/').filter(Boolean);
+        const categoryKebab = parts[0] ?? '';
+        const exampleNameKebab = parts[1] ?? '';
+        const meta = exampleMetaData.find(item =>
+            item.categoryKebab === categoryKebab && item.exampleNameKebab === exampleNameKebab
+        );
+        if ((meta && typeof meta.externalUrl === 'string' && meta.externalUrl) || isMenuHiddenForPath(path)) {
             return null;
         }
         const { showMiniStats, hasCredits, shareDialogOpen, shareUrl, shareTitle } = this.state;
