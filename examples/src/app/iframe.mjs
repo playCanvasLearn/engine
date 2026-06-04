@@ -34,15 +34,18 @@ class IFrame {
     }
 
     get path() {
-        const href = this.window?.location.href ?? '';
-        const pathname = href ? new URL(href).pathname : '';
-        /* eslint-disable-next-line */
-        const groups = /([\w-]+)_([\w-]+).html$/.exec(pathname);
-        if (!groups) {
+        try {
+            const href = this.window?.location?.href ?? '';
+            const pathname = href ? new URL(href).pathname : '';
+            /* eslint-disable-next-line */
+            const groups = /([\w-]+)_([\w-]+).html$/.exec(pathname);
+            if (!groups) {
+                return '';
+            }
+            return `/${groups[1]}/${groups[2]}`;
+        } catch (e) {
             return '';
         }
-
-        return `/${groups[1]}/${groups[2]}`;
     }
 
     /**
@@ -54,12 +57,20 @@ class IFrame {
             return;
         }
         if (!stamp) {
-            win.location.reload();
+            try {
+                win.location.reload();
+            } catch (e) {}
             return;
         }
-        const url = new URL(win.location.href);
-        url.searchParams.set('t', stamp);
-        win.location.href = url.href;
+        try {
+            const url = new URL(win.location.href);
+            url.searchParams.set('t', stamp);
+            win.location.href = url.href;
+        } catch (e) {
+            try {
+                win.location.reload();
+            } catch (e2) {}
+        }
     }
 
     /**
@@ -67,7 +78,9 @@ class IFrame {
      * @param {Record<string, any>} [detail] - The detail obj.
      */
     fire(eventName, detail = {}) {
-        this.window?.dispatchEvent(new CustomEvent(eventName, { detail }));
+        try {
+            this.window?.dispatchEvent(new CustomEvent(eventName, { detail }));
+        } catch (e) {}
     }
 }
 

@@ -14,6 +14,7 @@ import { COLOR_NAMES, INLINE_MD_PATTERN, SAFE_URL_PATTERN } from '../../../utils
 import { CLOSE_SELECTS_EVENT } from '../constants.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx, fragment } from '../jsx.mjs';
+import { exampleMetaData } from '../metadata.mjs';
 import { iframePath } from '../paths.mjs';
 import {
     isRecord,
@@ -32,6 +33,22 @@ import { getLayout } from '../utils.mjs';
  */
 
 const SETTLE_WINDOW_MS = 2000;
+
+/** @typedef {{ categoryKebab: string, exampleNameKebab: string, externalUrl?: string }} ExampleMetaItem */
+
+/**
+ * @param {string} categoryKebab
+ * @param {string} exampleNameKebab
+ * @returns {string}
+ */
+const getExternalUrl = (categoryKebab, exampleNameKebab) => {
+    const list = /** @type {ExampleMetaItem[]} */ (/** @type {unknown} */ (exampleMetaData));
+    const item = list.find(meta =>
+        meta.categoryKebab === categoryKebab && meta.exampleNameKebab === exampleNameKebab
+    );
+    const url = item?.externalUrl;
+    return typeof url === 'string' && url ? url : '';
+};
 
 /**
  * Walk a nested controls object, writing each leaf to a flat dot-path map.
@@ -283,6 +300,7 @@ class Example extends TypedComponent {
         this._handleControlSet = this._handleControlSet.bind(this);
         this._captureBaseline = this._captureBaseline.bind(this);
         this._reloadIframe = this._reloadIframe.bind(this);
+        this._handleIframeLoad = this._handleIframeLoad.bind(this);
     }
 
     /**
@@ -538,7 +556,11 @@ class Example extends TypedComponent {
         window.addEventListener('exampleHotReload', this._handleExampleHotReload);
         window.addEventListener('exampleError', this._handleExampleError);
         window.addEventListener('updateFiles', this._handleUpdateFiles);
-        iframe.fire('requestFiles');
+        if (this.externalUrl) {
+            this._beginExternalLoading();
+        } else {
+            iframe.fire('requestFiles');
+        }
     }
 
     /**
@@ -550,6 +572,11 @@ class Example extends TypedComponent {
         if (prevParams.category !== params.category || prevParams.example !== params.example) {
             window.dispatchEvent(new Event(CLOSE_SELECTS_EVENT));
             this.bindObserver(null);
+            if (this.externalUrl) {
+                this._beginExternalLoading();
+            } else {
+                iframe.fire('requestFiles');
+            }
         }
 
         this.setupControlPanel();
@@ -575,10 +602,57 @@ class Example extends TypedComponent {
         return `/${this.props.match.params.category}/${this.props.match.params.example}`;
     }
 
+    get externalUrl() {
+        const categoryKebab = this.props.match.params.category;
+        const exampleNameKebab = this.props.match.params.example;
+        return getExternalUrl(categoryKebab, exampleNameKebab);
+    }
+
     get iframePath() {
+        const externalUrl = this.externalUrl;
+        if (externalUrl) {
+            return externalUrl;
+        }
         const categoryKebab = this.props.match.params.category;
         const exampleNameKebab = this.props.match.params.example;
         return `${iframePath}${categoryKebab}_${exampleNameKebab}.html`;
+    }
+
+    _beginExternalLoading() {
+        this.bindObserver(null);
+        this.mergeState({
+            exampleLoaded: false,
+            loadedPath: '',
+            loadError: null,
+            loadProgress: 0,
+            loadStage: 'load',
+            controls: null,
+            observer: null,
+            showDeviceSelector: false,
+            files: {},
+            description: '',
+            credits: []
+        });
+    }
+
+    _handleIframeLoad() {
+        if (!this.externalUrl) {
+            return;
+        }
+        const path = this.iframePath;
+        this.mergeState({
+            exampleLoaded: true,
+            loadedPath: path,
+            loadError: null,
+            loadProgress: 1,
+            loadStage: 'ready',
+            controls: null,
+            observer: null,
+            showDeviceSelector: false,
+            files: {},
+            description: '',
+            credits: []
+        });
     }
 
     renderDeviceSelector() {
@@ -1127,7 +1201,8 @@ class Example extends TypedComponent {
             jsx('iframe', {
                 id: 'exampleIframe',
                 key: iframePath,
-                src: iframePath
+                src: iframePath,
+                onLoad: this._handleIframeLoad
             }),
             layout !== 'mobile' && this.renderDescription(),
             layout !== 'mobile' && this.renderCreditsOverlay(),

@@ -17,6 +17,7 @@ const LOG_HIDDEN_EXAMPLES = process.env.NODE_ENV === 'production';
  * @property {string} categoryKebab - The category name.
  * @property {string} exampleNameKebab - The example name.
  * @property {boolean} hidden - True if hidden from the production sidebar.
+ * @property {string} [externalUrl] - External URL to embed for this example (if any).
  */
 
 /**
@@ -78,6 +79,7 @@ export const buildMetadata = () => {
             const exampleNameKebab = toKebabCase(exampleName);
             const config = parseConfig(fs.readFileSync(examplePath, 'utf-8'));
             const hidden = !!config.HIDDEN;
+            const externalUrl = typeof config.EXTERNAL_URL === 'string' ? config.EXTERNAL_URL : undefined;
 
             if (hidden) {
                 hiddenExamples.push(`${categoryKebab}/${exampleNameKebab}`);
@@ -87,7 +89,8 @@ export const buildMetadata = () => {
                 path: categoryPath,
                 categoryKebab,
                 exampleNameKebab,
-                hidden
+                hidden,
+                externalUrl
             });
         });
     });

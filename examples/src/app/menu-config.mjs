@@ -181,6 +181,10 @@ export const menuOverrides = {
                 "tween": {
                     "label": "补间",
                     "hidden": false
+                },
+                "mes-worker": {
+                    "label": "MES工位",
+                    "hidden": false
                 }
             }
         },

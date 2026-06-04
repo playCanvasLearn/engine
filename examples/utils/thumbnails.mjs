@@ -138,10 +138,11 @@ class PuppeteerPool {
  * @param {PuppeteerPool} pool - The pool instance.
  * @param {string} categoryKebab - Category kebab name.
  * @param {string} exampleNameKebab - Example kebab name.
+ * @param {string} externalUrl - External URL (if this example is an embedded external page).
  * @param {boolean} debug - Enable debug logs.
  * @returns {Promise<void>} completion promise.
  */
-const takeThumbnails = async (pool, categoryKebab, exampleNameKebab, debug) => {
+const takeThumbnails = async (pool, categoryKebab, exampleNameKebab, externalUrl, debug) => {
     const poolItem = pool.allocPoolItem();
     const page = await pool.newPage(poolItem);
     if (debug) {
@@ -153,7 +154,7 @@ const takeThumbnails = async (pool, categoryKebab, exampleNameKebab, debug) => {
     }
 
     // navigate to example
-    const link = `http://localhost:${PORT}/iframe/${categoryKebab}_${exampleNameKebab}.html?miniStats=false&deviceType=webgl2`;
+    const link = externalUrl || `http://localhost:${PORT}/iframe/${categoryKebab}_${exampleNameKebab}.html?miniStats=false&deviceType=webgl2`;
     if (debug) {
         console.log('goto', link);
     }
@@ -163,7 +164,11 @@ const takeThumbnails = async (pool, categoryKebab, exampleNameKebab, debug) => {
     if (debug) {
         console.log('wait for', link);
     }
-    await page.waitForFunction('window?.pc?.app?._time > 1000', { timeout: TIMEOUT });
+    if (externalUrl) {
+        await sleep(2000);
+    } else {
+        await page.waitForFunction('window?.pc?.app?._time > 1000', { timeout: TIMEOUT });
+    }
 
     // screenshot page
     await page.screenshot({ path: `thumbnails/${categoryKebab}_${exampleNameKebab}.webp`, type: 'webp' });
@@ -216,7 +221,7 @@ const takeScreenshots = async (metadata, options) => {
 
     const screenshotPromises = [];
     for (let i = 0; i < metadata.length; i++) {
-        const { categoryKebab, exampleNameKebab } = metadata[i];
+        const { categoryKebab, exampleNameKebab, externalUrl } = metadata[i];
 
         // check if thumbnail exists
         if (fs.existsSync(`thumbnails/${categoryKebab}_${exampleNameKebab}_large.webp`)) {
@@ -225,7 +230,7 @@ const takeScreenshots = async (metadata, options) => {
         }
 
         screenshotPromises.push(
-            takeThumbnails(pool, categoryKebab, exampleNameKebab, options.debug)
+            takeThumbnails(pool, categoryKebab, exampleNameKebab, externalUrl ?? '', options.debug)
         );
     }
 
