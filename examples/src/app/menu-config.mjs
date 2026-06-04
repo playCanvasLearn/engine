@@ -150,6 +150,11 @@ export const menuOverrides = {
             "label": "动画",
             "hidden": false,
             "examples": {
+                "mes-worker": {
+                    "label": "MES机器人工作场景",
+                    "hidden": false,
+                    "order": 100
+                },
                 "blend-trees-1d": {
                     "label": "混合树1D",
                     "hidden": false
@@ -180,10 +185,6 @@ export const menuOverrides = {
                 },
                 "tween": {
                     "label": "补间",
-                    "hidden": false
-                },
-                "mes-worker": {
-                    "label": "MES工位",
                     "hidden": false
                 }
             }
@@ -1181,6 +1182,42 @@ export const getCategoryLabel = (categoryKebab) => getCategoryConfig(categoryKeb
 
 /** @param {string} categoryKebab @param {string} exampleKebab */
 export const getExampleLabel = (categoryKebab, exampleKebab) => getExampleConfig(categoryKebab, exampleKebab)?.label ?? humanizeKebab(exampleKebab);
+
+export const DEFAULT_ORDER = 999;
+
+/** @param {string} categoryKebab */
+export const getCategoryOrder = (categoryKebab) => {
+    const categories = /** @type {Record<string, any>} */ (/** @type {any} */ (menuOverrides.categories ?? {}));
+    const order = categories[categoryKebab]?.order;
+    return typeof order === 'number' ? order : DEFAULT_ORDER;
+};
+
+/** @param {string} categoryKebab @param {string} exampleKebab */
+export const getExampleOrder = (categoryKebab, exampleKebab) => {
+    const categories = /** @type {Record<string, any>} */ (/** @type {any} */ (menuOverrides.categories ?? {}));
+    const order = categories[categoryKebab]?.examples?.[exampleKebab]?.order;
+    return typeof order === 'number' ? order : DEFAULT_ORDER;
+};
+
+/** @param {string} a @param {string} b */
+export const compareCategories = (a, b) => {
+    const ao = getCategoryOrder(a);
+    const bo = getCategoryOrder(b);
+    if (ao !== bo) {
+        return ao - bo;
+    }
+    return a.localeCompare(b);
+};
+
+/** @param {string} categoryKebab @param {string} a @param {string} b */
+export const compareExamples = (categoryKebab, a, b) => {
+    const ao = getExampleOrder(categoryKebab, a);
+    const bo = getExampleOrder(categoryKebab, b);
+    if (ao !== bo) {
+        return ao - bo;
+    }
+    return a.localeCompare(b);
+};
 
 /** @param {string} pathname */
 export const isSidebarHiddenForPath = (pathname) => {

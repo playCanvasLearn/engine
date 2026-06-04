@@ -7,7 +7,7 @@ import { exampleMetaData } from '../metadata.mjs';
 import { VERSION } from '../constants.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx } from '../jsx.mjs';
-import { getCategoryLabel, getExampleLabel, isCategoryHidden, isExampleHidden, isSidebarHiddenForPath, menuConfig } from '../menu-config.mjs';
+import { compareCategories, compareExamples, getCategoryLabel, getExampleLabel, isCategoryHidden, isExampleHidden, isSidebarHiddenForPath, menuConfig } from '../menu-config.mjs';
 import { thumbnailPath } from '../paths.mjs';
 import { getHashPath, patchState, readState } from '../url-state.mjs';
 import { getLayout } from '../utils.mjs';
@@ -281,7 +281,7 @@ class SideBar extends TypedComponent {
         }
         const { pathname } = this.props.location;
         return Object.keys(categories)
-        .sort((a, b) => (a > b ? 1 : -1))
+        .sort(compareCategories)
         .map((category) => {
             return jsx(
                 Panel,
@@ -298,7 +298,7 @@ class SideBar extends TypedComponent {
                         className: 'category-nav'
                     },
                     Object.keys(categories[category].examples)
-                    .sort((a, b) => (a > b ? 1 : -1))
+                    .sort((a, b) => compareExamples(category, a, b))
                     .map((example) => {
                         const path = `/${category}/${example}`;
                         const isSelected = pathname === path;

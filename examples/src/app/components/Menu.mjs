@@ -10,6 +10,8 @@ import { isMenuHiddenForPath } from '../menu-config.mjs';
 import { buildShareUrl, getHashPath, patchState, readState } from '../url-state.mjs';
 import { getLayout } from '../utils.mjs';
 
+/** @typedef {{ categoryKebab: string, exampleNameKebab: string, externalUrl?: string }} ExampleMetaItem */
+
 /**
  * @typedef {object} Props
  * @property {(value: boolean) => void} setShowMiniStats - The state set function .
@@ -207,7 +209,8 @@ class Menu extends TypedComponent {
         const parts = path.split('/').filter(Boolean);
         const categoryKebab = parts[0] ?? '';
         const exampleNameKebab = parts[1] ?? '';
-        const meta = exampleMetaData.find(item =>
+        const list = /** @type {ExampleMetaItem[]} */ (/** @type {unknown} */ (exampleMetaData));
+        const meta = list.find(item =>
             item.categoryKebab === categoryKebab && item.exampleNameKebab === exampleNameKebab
         );
         if ((meta && typeof meta.externalUrl === 'string' && meta.externalUrl) || isMenuHiddenForPath(path)) {
