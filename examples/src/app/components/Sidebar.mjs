@@ -3,10 +3,11 @@ import { BindingTwoWay, BooleanInput, Container, Label, LabelGroup, Panel, TextI
 import { Component } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-import { exampleMetaData } from '../../../cache/metadata.mjs';
+import { exampleMetaData } from '../metadata.mjs';
 import { VERSION } from '../constants.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx } from '../jsx.mjs';
+import { getCategoryLabel, getExampleLabel, isCategoryHidden, isExampleHidden, isSidebarHiddenForPath, menuConfig } from '../menu-config.mjs';
 import { thumbnailPath } from '../paths.mjs';
 import { getHashPath, patchState, readState } from '../url-state.mjs';
 import { getLayout } from '../utils.mjs';
@@ -52,11 +53,15 @@ function getDefaultExampleFiles() {
             continue;
         }
 
-        if (!categories[categoryKebab]) {
-            categories[categoryKebab] = { examples: {} };
+        if (isCategoryHidden(categoryKebab) || isExampleHidden(categoryKebab, exampleNameKebab)) {
+            continue;
         }
 
-        categories[categoryKebab].examples[exampleNameKebab] = exampleNameKebab;
+        if (!categories[categoryKebab]) {
+            categories[categoryKebab] = { label: getCategoryLabel(categoryKebab), examples: {} };
+        }
+
+        categories[categoryKebab].examples[exampleNameKebab] = getExampleLabel(categoryKebab, exampleNameKebab);
     }
     return categories;
 }
@@ -76,16 +81,17 @@ function filterCategories(defaultCategories, filter) {
     /** @type {Record<string, Record<string, any>>} */
     const updatedCategories = {};
     Object.keys(defaultCategories).forEach((category) => {
-        if (category.search(reg) !== -1) {
+        const categoryLabel = defaultCategories[category]?.label ?? category;
+        if (category.search(reg) !== -1 || categoryLabel.search(reg) !== -1) {
             updatedCategories[category] = defaultCategories[category];
             return null;
         }
         Object.keys(defaultCategories[category].examples).forEach((example) => {
             const title = defaultCategories[category].examples[example];
-            if (title.search(reg) !== -1) {
+            if (example.search(reg) !== -1 || title.search(reg) !== -1) {
                 if (!updatedCategories[category]) {
                     updatedCategories[category] = {
-                        name: defaultCategories[category].name,
+                        label: defaultCategories[category].label,
                         examples: {
                             [example]: title
                         }
@@ -282,7 +288,7 @@ class SideBar extends TypedComponent {
                 {
                     key: category,
                     class: 'categoryPanel',
-                    headerText: category.split('-').join(' ').toUpperCase(),
+                    headerText: categories[category].label ?? category.split('-').join(' ').toUpperCase(),
                     collapsible: true,
                     collapsed: false
                 },
@@ -322,7 +328,7 @@ class SideBar extends TypedComponent {
                                     {
                                         className: 'nav-item-text'
                                     },
-                                    example.split('-').join(' ').toUpperCase()
+                                    categories[category].examples[example]
                                 )
                             )
                         );
@@ -335,9 +341,12 @@ class SideBar extends TypedComponent {
     render() {
         const { observer, collapsed } = this.state;
         const layout = this.props.layout ?? this.state.layout;
+        if (isSidebarHiddenForPath(this.props.location.pathname)) {
+            return null;
+        }
         const smallThumbnails = observer.get('largeThumbnails') !== true;
         const panelOptions = {
-            headerText: '3D 数字孪生',
+            headerText: menuConfig.sidebar.title,
             collapsible: true,
             collapsed: false,
             id: 'sideBar',
@@ -347,7 +356,7 @@ class SideBar extends TypedComponent {
             if (this.props.mobilePanel !== 'examples') {
                 return null;
             }
-            panelOptions.headerText = '3D 数字孪生';
+            panelOptions.headerText = menuConfig.sidebar.title;
             panelOptions.class = ['mobile-sheet', 'small-thumbnails'];
             panelOptions.collapsible = false;
             panelOptions.collapsed = false;
@@ -362,7 +371,7 @@ class SideBar extends TypedComponent {
                 jsx(/** @type {any} */ (TextInput), {
                     class: 'filter-input',
                     keyChange: true,
-                    placeholder: '筛选...',
+                    placeholder: menuConfig.sidebar.filterPlaceholder,
                     value: this.state.filterText,
                     onChange: this.onChangeFilter.bind(this)
                 }),

@@ -5,6 +5,7 @@ import { ShareDialog } from './ShareDialog.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx } from '../jsx.mjs';
 import { logo } from '../paths.mjs';
+import { isMenuHiddenForPath } from '../menu-config.mjs';
 import { buildShareUrl, getHashPath, patchState, readState } from '../url-state.mjs';
 import { getLayout } from '../utils.mjs';
 
@@ -201,6 +202,9 @@ class Menu extends TypedComponent {
     }
 
     render() {
+        if (isMenuHiddenForPath(getHashPath())) {
+            return null;
+        }
         const { showMiniStats, hasCredits, shareDialogOpen, shareUrl, shareTitle } = this.state;
         const { layout, showCredits } = this.props;
         return jsx(
