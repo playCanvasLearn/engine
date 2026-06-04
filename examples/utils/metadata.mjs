@@ -6,7 +6,6 @@ import { bold, createdLog, startLog, writeLog, YELLOW } from './log.mjs';
 import { toKebabCase } from '../src/app/strings.mjs';
 
 const ROOT_PATH = 'src/examples';
-const OUTPUT = 'cache/metadata.mjs';
 const APP_OUTPUT = 'src/app/metadata.mjs';
 const APP_DIR = 'src/app/metadata';
 const APP_PREFIX = `${APP_DIR}/metadata.`;
@@ -58,7 +57,7 @@ const getDirFiles = (dir) => {
  * @returns {void} no return value.
  */
 export const buildMetadata = () => {
-    startLog('metadata', OUTPUT);
+    startLog('metadata', APP_OUTPUT);
     const start = performance.now();
     const categories = getDirFiles(ROOT_PATH);
     /** @type {ExampleMetadata[]} */
@@ -93,9 +92,6 @@ export const buildMetadata = () => {
         });
     });
 
-    fs.mkdirSync('cache', { recursive: true });
-    fs.writeFileSync(OUTPUT, `export const exampleMetaData = ${objStringify(exampleMetaData)};\n`);
-
     const perCategory = new Map();
     for (const item of exampleMetaData) {
         if (!perCategory.has(item.categoryKebab)) {
@@ -117,5 +113,5 @@ export const buildMetadata = () => {
         hiddenExamples.forEach(example => writeLog(process.stderr, YELLOW, `  ${example}`));
     }
 
-    createdLog(OUTPUT, performance.now() - start);
+    createdLog(APP_OUTPUT, performance.now() - start);
 };

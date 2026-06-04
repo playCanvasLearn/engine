@@ -82,7 +82,7 @@ export const EXTERNAL_LOCAL = [
  * @returns {Promise<ExampleMetadata[]>} loaded metadata.
  */
 export const loadExampleMetaData = async () => {
-    const metadata = await import('../cache/metadata.mjs');
+    const metadata = await import('../src/app/metadata.mjs');
     exampleMetaData = metadata.exampleMetaData;
     return exampleMetaData;
 };

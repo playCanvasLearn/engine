@@ -10,7 +10,7 @@ const USAGE = `Usage: node build.mjs [options]
 
 Options:
   --cert          Generate local HTTPS dev certificates
-  --metadata      Generate cache/metadata.mjs
+  --metadata      Generate src/app/metadata.mjs and src/app/metadata/*
   --thumbnails    Generate thumbnails
   --clean         Remove dist and cache
   --debug         Enable thumbnail debug logging

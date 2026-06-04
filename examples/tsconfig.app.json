@@ -8,8 +8,7 @@
     "include": [
         "src/app/**/*.mjs",
         "src/app/**/*.js",
-        "src/app/**/*.d.ts",
-        "cache/metadata.mjs"
+        "src/app/**/*.d.ts"
     ],
     "exclude": [
         "node_modules",
