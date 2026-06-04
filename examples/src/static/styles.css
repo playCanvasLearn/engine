@@ -314,21 +314,250 @@ body {
     justify-content: center;
     box-sizing: border-box;
     padding: 24px;
-    background-color: rgba(16, 21, 22, 0.88);
+    background: #0d0d0d;
     color: #f2f2f2;
     text-align: center;
     pointer-events: none;
 }
 
-.example-loading-content {
+#exampleLoading #application-splash-wrapper {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#exampleLoading .contentWrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    max-width: min(320px, 100%);
+    justify-content: center;
+}
+
+@keyframes exampleFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes exampleClockwise {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes exampleCounterClockwise {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(-360deg);
+    }
+}
+
+#exampleLoading .logoSection {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 24px;
+    animation: exampleFadeIn 1s ease-in;
+}
+
+#exampleLoading .appLogo {
+    width: 125px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+}
+
+#exampleLoading .appName {
+    color: #fff;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    margin: 0;
+    text-transform: uppercase;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+#exampleLoading .example-loading-subtitle {
+    margin-top: 8px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+#exampleLoading .gearbox {
+    background: #111;
+    height: 150px;
+    width: 200px;
+    position: relative;
+    border: none;
+    border-radius: 6px;
+}
+
+#exampleLoading .overlay {
+    border-radius: 6px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    background: transparent;
+}
+
+#exampleLoading .gear {
+    position: absolute;
+    height: 60px;
+    width: 60px;
+    border-radius: 30px;
+}
+
+#exampleLoading .large {
+    height: 120px;
+    width: 120px;
+    border-radius: 60px;
+}
+
+#exampleLoading .one {
+    top: 12px;
+    left: 10px;
+}
+
+#exampleLoading .two {
+    top: 61px;
+    left: 60px;
+}
+
+#exampleLoading .three {
+    top: 110px;
+    left: 10px;
+}
+
+#exampleLoading .four {
+    top: 13px;
+    left: 128px;
+}
+
+#exampleLoading .gear:after {
+    content: "";
+    position: absolute;
+    height: 36px;
+    width: 36px;
+    border-radius: 36px;
+    background: #111;
+    top: 50%;
+    left: 50%;
+    margin-left: -18px;
+    margin-top: -18px;
+    z-index: 3;
+}
+
+#exampleLoading .large:after {
+    height: 96px;
+    width: 96px;
+    border-radius: 48px;
+    margin-left: -48px;
+    margin-top: -48px;
+}
+
+#exampleLoading .gearInner {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    background: #555;
+    border-radius: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-sizing: border-box;
+}
+
+#exampleLoading .large .gearInner {
+    border-radius: 60px;
+}
+
+#exampleLoading .one .gearInner {
+    animation: exampleCounterClockwise 3s infinite linear;
+}
+
+#exampleLoading .two .gearInner {
+    animation: exampleClockwise 3s infinite linear;
+}
+
+#exampleLoading .three .gearInner {
+    animation: exampleCounterClockwise 3s infinite linear;
+}
+
+#exampleLoading .four .gearInner {
+    animation: exampleCounterClockwise 6s infinite linear;
+}
+
+#exampleLoading .bar {
+    background: #555;
+    height: 16px;
+    width: 76px;
+    position: absolute;
+    left: 50%;
+    margin-left: -38px;
+    top: 50%;
+    margin-top: -8px;
+    border-radius: 2px;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    box-sizing: border-box;
+}
+
+#exampleLoading .large .bar {
+    margin-left: -68px;
+    width: 136px;
+}
+
+#exampleLoading .gearInner .bar:nth-child(2) {
+    transform: rotate(60deg);
+}
+
+#exampleLoading .gearInner .bar:nth-child(3) {
+    transform: rotate(120deg);
+}
+
+#exampleLoading .gearInner .bar:nth-child(4) {
+    transform: rotate(90deg);
+}
+
+#exampleLoading .gearInner .bar:nth-child(5) {
+    transform: rotate(30deg);
+}
+
+#exampleLoading .gearInner .bar:nth-child(6) {
+    transform: rotate(150deg);
+}
+
+#exampleLoading #progress-bar-container {
+    margin: 36px auto 0 auto;
+    height: 4px;
+    width: 200px;
+    background-color: #1d292c;
+    border-radius: 2px;
+}
+
+#exampleLoading #progress-bar {
+    width: 0%;
+    height: 100%;
+    background-color: #3346e8;
+    border-radius: 2px;
+    transition: width 0.2s;
 }
 
 .example-loading-title {
+    margin-top: 14px;
     font-size: 14px;
     font-weight: 600;
     line-height: 18px;
@@ -336,7 +565,7 @@ body {
 
 .example-loading-message {
     max-width: 100%;
-    color: #c8d0d2;
+    color: rgba(255, 255, 255, 0.72);
     font-size: 12px;
     line-height: 16px;
     overflow-wrap: anywhere;

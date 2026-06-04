@@ -25,8 +25,8 @@ import { getLayout } from '../utils.mjs';
 
 /**
  * @typedef {object} State
- * @property {Record<string, Record<string, object>>} defaultCategories - The default categories.
- * @property {Record<string, Record<string, object>>|null} filteredCategories - The filtered categories.
+ * @property {Record<string, { label: string, examples: Record<string, string> }>} defaultCategories - The default categories.
+ * @property {Record<string, { label: string, examples: Record<string, string> }>|null} filteredCategories - The filtered categories.
  * @property {Observer} observer - The observer.
  * @property {boolean} collapsed - Collapsed or not.
  * @property {string} filterText - The current filter.
@@ -39,10 +39,10 @@ import { getLayout } from '../utils.mjs';
 const TypedComponent = Component;
 
 /**
- * @returns {Record<string, { examples: Record<string, string> }>} - The category files.
+ * @returns {Record<string, { label: string, examples: Record<string, string> }>} - The category files.
  */
 function getDefaultExampleFiles() {
-    /** @type {Record<string, { examples: Record<string, string> }>} */
+    /** @type {Record<string, { label: string, examples: Record<string, string> }>} */
     const categories = {};
     for (let i = 0; i < exampleMetaData.length; i++) {
         const { categoryKebab, exampleNameKebab, hidden } = exampleMetaData[i];
@@ -67,9 +67,9 @@ function getDefaultExampleFiles() {
 }
 
 /**
- * @param {Record<string, Record<string, any>>} defaultCategories - Default categories.
+ * @param {Record<string, { label: string, examples: Record<string, string> }>} defaultCategories - Default categories.
  * @param {string} filter - Filter string.
- * @returns {Record<string, Record<string, any>> | null} Filtered categories.
+ * @returns {Record<string, { label: string, examples: Record<string, string> }> | null} Filtered categories.
  */
 function filterCategories(defaultCategories, filter) {
     const query = filter.replace(/\s/g, '.*');
@@ -78,7 +78,7 @@ function filterCategories(defaultCategories, filter) {
         return null;
     }
 
-    /** @type {Record<string, Record<string, any>>} */
+    /** @type {Record<string, { label: string, examples: Record<string, string> }>} */
     const updatedCategories = {};
     Object.keys(defaultCategories).forEach((category) => {
         const categoryLabel = defaultCategories[category]?.label ?? category;

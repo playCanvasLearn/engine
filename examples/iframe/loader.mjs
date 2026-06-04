@@ -60,9 +60,14 @@ class ExampleLoader {
      */
     ready = false;
 
+    _setProgress(value, stage = '') {
+        fire('exampleProgress', { value, stage });
+    }
+
     _appStart() {
         // set ready state
         this.ready = true;
+        this._setProgress(1, 'ready');
 
         if (this._app) {
             if (!this._app?.graphicsDevice?.canvas) {
@@ -142,6 +147,7 @@ class ExampleLoader {
      * @param {string} [stamp] - The cache-busting stamp.
      */
     async _fetchFiles(stamp = '') {
+        this._setProgress(0.2, 'fetch');
         const suffix = stamp ? `?t=${stamp}` : '';
         // extracts example category and name from the URL
         const match = /([^/]+)\.html$/.exec(new URL(location.href).pathname);
@@ -155,8 +161,12 @@ class ExampleLoader {
          * @type {Record<string, string>}
          */
         const unorderedFiles = {};
+        const total = Math.max(1, this._fileNames.length);
+        let done = 0;
         await Promise.all(this._fileNames.map(async (name) => {
             unorderedFiles[name] = await fetchFile(`../iframe/${this._name}.${name}${suffix}`);
+            done++;
+            this._setProgress(0.2 + (done / total) * 0.4, 'fetch');
         }));
         this._clearFiles();
         for (const name of Object.keys(unorderedFiles).sort()) {
@@ -173,7 +183,9 @@ class ExampleLoader {
         this._baseConfig = config;
         this._fileNames = fileNames;
 
+        this._setProgress(0.05, 'engine');
         window.pc = await import(engineUrl);
+        this._setProgress(0.15, 'engine');
 
         // @ts-ignore
         win.pc = window.pc;
@@ -185,17 +197,20 @@ class ExampleLoader {
 
     async load() {
         this._allowRestart = false;
+        this._setProgress(0.6, 'load');
 
         // refresh observer instance
         refreshContext();
 
         // parse config
+        this._setProgress(0.65, 'config');
         this._config = {
             ...this._baseConfig,
             ...parseConfig(files['example.mjs'])
         };
 
         // update device type
+        this._setProgress(0.7, 'device');
         updateDeviceType(this._config);
 
         if (!this._started) {
@@ -207,8 +222,10 @@ class ExampleLoader {
 
         try {
             // import local file
+            this._setProgress(0.8, 'module');
             const module = await importModule('example.mjs');
             this._app = module.app ?? window.pc?.AppBase.getApplication('application-canvas');
+            this._setProgress(0.9, 'module');
 
             // additional destroy handler for non-app resources
             if (typeof module.destroy === 'function') {
@@ -222,6 +239,7 @@ class ExampleLoader {
                 message: e.message,
                 locations
             });
+            this._setProgress(1, 'error');
 
             this._allowRestart = true;
             return;

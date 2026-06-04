@@ -66,8 +66,10 @@
  */
 import { exampleMetaData } from './metadata.mjs';
 
+/** @param {string} value */
 export const humanizeKebab = (value) => value.split('-').join(' ').toUpperCase();
 
+/** @param {string} value */
 const normalizePath = (value) => {
     if (!value) {
         return '/';
@@ -95,8 +97,13 @@ const buildDefaultCategories = () => {
 };
 
 
+/**
+ * @param {Record<string, any>} defaults
+ * @param {Record<string, any>} overrides
+ * @returns {Record<string, any>}
+ */
 const mergeCategoryTrees = (defaults, overrides) => {
-    /** @type {any} */
+    /** @type {Record<string, any>} */
     const out = {};
     const keys = new Set([...Object.keys(defaults ?? {}), ...Object.keys(overrides ?? {})]);
     for (const key of keys) {
@@ -104,6 +111,7 @@ const mergeCategoryTrees = (defaults, overrides) => {
         const over = overrides?.[key] ?? {};
         const baseExamples = base.examples ?? {};
         const overExamples = over.examples ?? {};
+        /** @type {Record<string, any>} */
         const examples = {};
         const exampleKeys = new Set([...Object.keys(baseExamples), ...Object.keys(overExamples)]);
         for (const exKey of exampleKeys) {
@@ -1149,26 +1157,34 @@ export const menuConfig = {
     }
 };
 
+/** @param {string} categoryKebab */
 export const getCategoryConfig = (categoryKebab) => menuConfig.categories?.[categoryKebab] ?? null;
 
+/** @param {string} categoryKebab @param {string} exampleKebab */
 export const getExampleConfig = (categoryKebab, exampleKebab) => {
     const cat = getCategoryConfig(categoryKebab);
     return cat?.examples?.[exampleKebab] ?? null;
 };
 
+/** @param {string} categoryKebab */
 export const isCategoryHidden = (categoryKebab) => getCategoryConfig(categoryKebab)?.hidden === true;
 
+/** @param {string} categoryKebab @param {string} exampleKebab */
 export const isExampleHidden = (categoryKebab, exampleKebab) => getExampleConfig(categoryKebab, exampleKebab)?.hidden === true;
 
+/** @param {string} categoryKebab */
 export const getCategoryLabel = (categoryKebab) => getCategoryConfig(categoryKebab)?.label ?? humanizeKebab(categoryKebab);
 
+/** @param {string} categoryKebab @param {string} exampleKebab */
 export const getExampleLabel = (categoryKebab, exampleKebab) => getExampleConfig(categoryKebab, exampleKebab)?.label ?? humanizeKebab(exampleKebab);
 
+/** @param {string} pathname */
 export const isSidebarHiddenForPath = (pathname) => {
     const path = normalizePath(pathname);
     return (menuConfig.hiddenPaths.sidebar ?? []).map(normalizePath).includes(path);
 };
 
+/** @param {string} pathname */
 export const isMenuHiddenForPath = (pathname) => {
     const path = normalizePath(pathname);
     return (menuConfig.hiddenPaths.menu ?? []).map(normalizePath).includes(path);
