@@ -33,6 +33,7 @@ import { getLayout } from '../utils.mjs';
  */
 
 const SETTLE_WINDOW_MS = 2000;
+const MIN_LOADING_MS = 3000;
 
 /** @typedef {{ categoryKebab: string, exampleNameKebab: string, externalUrl?: string }} ExampleMetaItem */
 
@@ -195,6 +196,7 @@ const createState = () => {
     return {
         layout,
         collapsed,
+        loadingVisible: false,
         exampleLoaded: false,
         loadedPath: '',
         loadError: null,
@@ -246,6 +248,7 @@ const createState = () => {
  * @typedef {object} State
  * @property {'mobile' | 'desktop'} layout - The layout.
  * @property {boolean} collapsed - Collapsed or not.
+ * @property {boolean} loadingVisible - Whether the loading overlay is visible.
  * @property {boolean} exampleLoaded - Example is loaded or not.
  * @property {string} loadedPath - The loaded iframe path.
  * @property {{ path: string, message: string } | null} loadError - The current loading error.
@@ -281,6 +284,13 @@ class Example extends TypedComponent {
     /** @type {ReturnType<typeof setTimeout> | null} */
     _settleTimer = null;
 
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    _loadingHideTimer = null;
+
+    _loadingToken = 0;
+
+    _loadingStartAt = 0;
+
     _applying = 0;
 
     /**
@@ -301,6 +311,35 @@ class Example extends TypedComponent {
         this._captureBaseline = this._captureBaseline.bind(this);
         this._reloadIframe = this._reloadIframe.bind(this);
         this._handleIframeLoad = this._handleIframeLoad.bind(this);
+    }
+
+    _startLoading() {
+        this._loadingToken++;
+        this._loadingStartAt = performance.now();
+        if (this._loadingHideTimer) {
+            clearTimeout(this._loadingHideTimer);
+            this._loadingHideTimer = null;
+        }
+        this.mergeState({ loadingVisible: true });
+    }
+
+    _finishLoading() {
+        const token = this._loadingToken;
+        const elapsed = performance.now() - this._loadingStartAt;
+        const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+        if (remaining <= 0) {
+            this.mergeState({ loadingVisible: false });
+            return;
+        }
+        this._loadingHideTimer = setTimeout(() => {
+            if (token !== this._loadingToken) {
+                return;
+            }
+            if (this.state.loadError) {
+                return;
+            }
+            this.mergeState({ loadingVisible: false });
+        }, remaining);
     }
 
     /**
@@ -347,9 +386,11 @@ class Example extends TypedComponent {
      * @param {LoadingEvent} event - The event
      */
     _handleExampleLoading(event) {
+        this._startLoading();
         const { showDeviceSelector } = event.detail;
         this.bindObserver(null);
         this.mergeState({
+            loadingVisible: true,
             exampleLoaded: false,
             loadedPath: '',
             loadError: null,
@@ -395,6 +436,7 @@ class Example extends TypedComponent {
             this.applyControlState(observer);
             const controls = await this._buildControls(controlsSrc);
             this.mergeState({
+                loadingVisible: true,
                 exampleLoaded: true,
                 loadedPath: path,
                 loadError: null,
@@ -406,9 +448,11 @@ class Example extends TypedComponent {
                 description,
                 credits
             });
+                this._finishLoading();
         } else {
             // When switching examples from one with controls to one without controls...
             this.mergeState({
+                    loadingVisible: true,
                 exampleLoaded: true,
                 loadedPath: path,
                 loadError: null,
@@ -422,11 +466,14 @@ class Example extends TypedComponent {
             });
             this.bindObserver(null);
             patchState({ controls: {} });
+                this._finishLoading();
         }
     }
 
     _handleExampleHotReload() {
+        this._startLoading();
         this.mergeState({
+            loadingVisible: true,
             exampleLoaded: false,
             loadedPath: '',
             loadError: null
@@ -434,7 +481,9 @@ class Example extends TypedComponent {
     }
 
     _reloadIframe() {
+        this._startLoading();
         this.setState({
+            loadingVisible: true,
             exampleLoaded: false,
             loadedPath: '',
             loadError: null
@@ -445,12 +494,14 @@ class Example extends TypedComponent {
      * @param {ExampleErrorEvent} event - The event.
      */
     _handleExampleError(event) {
+        this._startLoading();
         const { exampleLoaded, loadedPath } = this.state;
         if (exampleLoaded && loadedPath === this.iframePath) {
             return;
         }
         const { name, message } = event.detail;
         this.mergeState({
+            loadingVisible: true,
             exampleLoaded: false,
             loadError: {
                 path: this.iframePath,
@@ -587,6 +638,10 @@ class Example extends TypedComponent {
         this.bindObserver(null);
         this._controlPanelScrollRegion?.removeEventListener('scroll', this._handleControlPanelScroll);
         this._controlPanelScrollRegion = null;
+        if (this._loadingHideTimer) {
+            clearTimeout(this._loadingHideTimer);
+            this._loadingHideTimer = null;
+        }
         window.removeEventListener('resize', this._onLayoutChange);
         window.removeEventListener('requestedFiles', this._handleRequestedFiles);
         window.removeEventListener('orientationchange', this._onLayoutChange);
@@ -619,8 +674,10 @@ class Example extends TypedComponent {
     }
 
     _beginExternalLoading() {
+        this._startLoading();
         this.bindObserver(null);
         this.mergeState({
+            loadingVisible: true,
             exampleLoaded: false,
             loadedPath: '',
             loadError: null,
@@ -641,6 +698,7 @@ class Example extends TypedComponent {
         }
         const path = this.iframePath;
         this.mergeState({
+            loadingVisible: true,
             exampleLoaded: true,
             loadedPath: path,
             loadError: null,
@@ -653,6 +711,7 @@ class Example extends TypedComponent {
             description: '',
             credits: []
         });
+        this._finishLoading();
     }
 
     renderDeviceSelector() {
@@ -1089,9 +1148,9 @@ class Example extends TypedComponent {
     render() {
         const { iframePath } = this;
         const external = !!this.externalUrl;
-        const { exampleLoaded, loadedPath, loadError, loadProgress, loadStage } = this.state;
+        const { loadingVisible, exampleLoaded, loadedPath, loadError, loadProgress, loadStage } = this.state;
         const error = loadError?.path === iframePath ? loadError : null;
-        const loading = !error && (!exampleLoaded || loadedPath !== iframePath);
+        const loading = !!error || loadingVisible || (!exampleLoaded || loadedPath !== iframePath);
         const layout = this.props.layout ?? this.state.layout;
         const mobilePanel = layout === 'mobile' ? this.props.mobilePanel : null;
         const className = mobilePanel ? 'mobile-panel-open' : undefined;

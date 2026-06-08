@@ -277,7 +277,7 @@ class SideBar extends TypedComponent {
     renderContents() {
         const categories = this.state.filteredCategories || this.state.defaultCategories;
         if (Object.keys(categories).length === 0) {
-            return jsx(Label, { text: 'No results' });
+            return jsx(Label, { text: '没有结果' });
         }
         const { pathname } = this.props.location;
         return Object.keys(categories)
@@ -384,7 +384,7 @@ class SideBar extends TypedComponent {
                     '\u2715'
                 ) : null
             ),
-            layout !== 'mobile' && jsx(
+/*             layout !== 'mobile' && jsx(
                 'div',
                 {
                     style: {
@@ -400,7 +400,7 @@ class SideBar extends TypedComponent {
                     binding: new BindingTwoWay(),
                     link: { observer, path: 'largeThumbnails' }
                 })
-            ),
+            ), */
             jsx(Container, { id: 'sideBar-contents' }, this.renderContents())
         );
     }
