@@ -1,5 +1,5 @@
 import { Observer } from '@playcanvas/observer';
-import { BindingTwoWay, BooleanInput, Container, Label, LabelGroup, Panel, TextInput } from '@playcanvas/pcui/react';
+import { BindingTwoWay, BooleanInput, Container, Label, Panel, TextInput } from '@playcanvas/pcui/react';
 import { Component } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -384,15 +384,23 @@ class SideBar extends TypedComponent {
                     '\u2715'
                 ) : null
             ),
-/*             layout !== 'mobile' && jsx(
-                LabelGroup,
-                { text: '显示缩略图:' },
+            layout !== 'mobile' && jsx(
+                'div',
+                {
+                    style: {
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        margin: 12
+                    }
+                },
+                jsx(Label, { text: '显示大缩略图:' }),
                 jsx(BooleanInput, {
                     type: 'toggle',
                     binding: new BindingTwoWay(),
                     link: { observer, path: 'largeThumbnails' }
                 })
-            ), */
+            ),
             jsx(Container, { id: 'sideBar-contents' }, this.renderContents())
         );
     }

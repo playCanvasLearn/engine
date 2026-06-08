@@ -44,13 +44,6 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\animation",
         categoryKebab: "animation",
-        exampleNameKebab: "mes-worker",
-        hidden: false,
-        externalUrl: "https://mes.365me.me/worker/index.html"
-    },
-    {
-        path: "src\\examples\\animation",
-        categoryKebab: "animation",
         exampleNameKebab: "tween",
         hidden: false
     }

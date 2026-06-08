@@ -146,15 +146,22 @@ export const menuOverrides = {
         */
     },
     categories: {
-        "animation": {
-            "label": "动画",
+        "scene": {
+            "label": "场景演示",
             "hidden": false,
+            "order": 100,
             "examples": {
                 "mes-worker": {
                     "label": "MES机器人工作场景",
                     "hidden": false,
                     "order": 100
-                },
+                }
+            }
+        },
+        "animation": {
+            "label": "动画",
+            "hidden": false,
+            "examples": {
                 "blend-trees-1d": {
                     "label": "混合树1D",
                     "hidden": false

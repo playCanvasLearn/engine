@@ -11,6 +11,7 @@ import { exampleMetaData as loaders } from './metadata/metadata.loaders.mjs';
 import { exampleMetaData as materials } from './metadata/metadata.materials.mjs';
 import { exampleMetaData as misc } from './metadata/metadata.misc.mjs';
 import { exampleMetaData as physics } from './metadata/metadata.physics.mjs';
+import { exampleMetaData as scene } from './metadata/metadata.scene.mjs';
 import { exampleMetaData as shaders } from './metadata/metadata.shaders.mjs';
 import { exampleMetaData as sound } from './metadata/metadata.sound.mjs';
 import { exampleMetaData as test } from './metadata/metadata.test.mjs';
@@ -31,6 +32,7 @@ export const exampleMetaData = [
     materials,
     misc,
     physics,
+    scene,
     shaders,
     sound,
     test,
