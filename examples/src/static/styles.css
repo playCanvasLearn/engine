@@ -107,7 +107,7 @@ body {
 }
 
 #sideBar-contents {
-    height: calc(100% - 88px);
+    height: calc(100% - 40px);
     overflow: auto;
     margin-top: 8px;
 }

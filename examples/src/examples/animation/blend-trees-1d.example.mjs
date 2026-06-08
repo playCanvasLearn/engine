@@ -6,7 +6,8 @@ const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('applic
 window.focus();
 
 const assets = {
-    model: new pc.Asset('model', 'container', { url: './assets/models/bitmoji.glb' }),
+    //model: new pc.Asset('model', 'container', { url: './assets/models/bitmoji.glb' }),
+    model: new pc.Asset('model', 'container', { url: './assets/scene/models/robot.glb' }),
     idleAnim: new pc.Asset('idleAnim', 'container', { url: './assets/animations/bitmoji/idle.glb' }),
     danceAnim: new pc.Asset('danceAnim', 'container', {
         url: './assets/animations/bitmoji/win-dance.glb'
