@@ -1,6 +1,6 @@
 // @config
 //
-// `LMB` / `RMB` Orbit · Hold `Shift` / `MMB` Pan · `Wheel` / `Pinch` Zoom · `F` Focus · `R` Reset
+// `鼠标左键/右键` 环绕 · 按住 `Shift` 或 `鼠标中键` 平移 · `滚轮/双指` 缩放 · `F` 聚焦 · `R` 重置
 
 import * as pc from 'playcanvas';
 import { CameraControls } from 'playcanvas/scripts/esm/camera-controls.mjs';
@@ -15,6 +15,16 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 }
 window.focus();
 
+//  Draco 压缩 的 glb 模型处理，初始化 Draco 解码器
+pc.WasmModule.setConfig('DracoDecoderModule', {
+    glueUrl: './assets/wasm/draco/draco.wasm.js',
+    wasmUrl: './assets/wasm/draco/draco.wasm.wasm',
+    fallbackUrl: './assets/wasm/draco/draco.js'
+});
+await new Promise((resolve) => {
+    pc.WasmModule.getInstance('DracoDecoderModule', () => resolve());
+});
+
 const gfxOptions = {
     deviceTypes: [deviceType]
 };
@@ -26,7 +36,7 @@ const assets = {
         { url: './assets/cubemaps/helipad-env-atlas.png' },
         { type: pc.TEXTURETYPE_RGBP, mipmaps: false }
     ),
-    statue: new pc.Asset('statue', 'container', { url: './assets/models/statue.glb' })
+    statue: new pc.Asset('statue', 'container', { url: './assets/scene/models/main_draco.glb' })
 };
 
 const device = await pc.createGraphicsDevice(canvas, gfxOptions);
@@ -77,6 +87,7 @@ app.root.addChild(light);
 
 const statue = assets.statue.resource.instantiateRenderEntity();
 statue.setLocalPosition(0, -0.5, 0);
+statue.setLocalScale(8, 8, 8);
 app.root.addChild(statue);
 
 /**

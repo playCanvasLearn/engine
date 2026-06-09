@@ -1,12 +1,6 @@
 // @config
 //
-// `WASD` Move · `Space` Jump · `Mouse` Look
-//
-// @credit
-// title: De Dust 2 with Real Light
-// author: Sketchfab
-// source: https://sketchfab.com/3d-models/de-dust-2-with-real-light-4ce74cd95c584ce9b12b5ed9dc418db5
-// license: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+// `WASD` 移动 · `Space` 跳跃 · `Mouse` 转向
 
 import * as pc from 'playcanvas';
 import { FirstPersonController } from 'playcanvas/scripts/esm/first-person-controller.mjs';
@@ -31,7 +25,9 @@ const gfxOptions = {
 };
 
 const assets = {
-    map: new pc.Asset('map', 'container', { url: './assets/models/fps-map.glb' }),
+    // map: new pc.Asset('map', 'container', { url: './assets/models/the_picture_gallery_low_poly__vr.glb' }),
+    // map: new pc.Asset('map', 'container', { url: './assets/models/factory_props.glb' }),
+    map: new pc.Asset('map', 'container', { url: './assets/models/venue_stage_for_great_events.glb' }),
     helipad: new pc.Asset(
         'helipad-env-atlas',
         'texture',
@@ -105,23 +101,29 @@ cameraFrame.bloom.intensity = 0.01;
 cameraFrame.update();
 
 // Level
-const map = assets.map.resource.instantiateRenderEntity();
+const map = assets.map.resource.instantiateRenderEntity({
+    castShadows: true
+});
 map.setLocalScale(2, 2, 2);
 map.setLocalEulerAngles(-90, 0, 0);
-map.findComponents('render').forEach((/** @type {pc.RenderComponent} */ render) => {
-    const entity = render.entity;
-    entity.addComponent('rigidbody', {
-        type: 'static'
-    });
-    entity.addComponent('collision', {
-        type: 'mesh',
-        renderAsset: render.asset
-    });
-});
+// map.findComponents('render').forEach((/** @type {pc.RenderComponent} */ render) => {
+//     const entity = render.entity;
+//     entity.addComponent('rigidbody', {
+//         type: 'static'
+//     });
+//     entity.addComponent('collision', {
+//         type: 'mesh',
+//         renderAsset: render.asset
+//     });
+// });
+
 const level = new pc.Entity();
 level.addChild(map);
 app.root.addChild(level);
 
+console.log(
+    map.getPosition()
+);
 // Character controller
 const characterController = new pc.Entity('cc');
 characterController.setPosition(5, 2, 10);
@@ -150,6 +152,21 @@ const fpc = /** @type {FirstPersonController} */ (characterController.script.cre
 }));
 app.root.addChild(characterController);
 
+
+const ground = new pc.Entity('ground');
+
+ground.addComponent('collision', {
+    type: 'box',
+    halfExtents: new pc.Vec3(100, 1, 100)
+});
+
+ground.addComponent('rigidbody', {
+    type: 'static'
+});
+
+ground.setPosition(0, 0, 0);
+
+app.root.addChild(ground);
 /**
  * @param {string} side - The name.
  * @param {number} baseSize - The base size.

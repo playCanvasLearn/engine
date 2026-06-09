@@ -197,30 +197,30 @@ export const menuOverrides = {
             }
         },
         "camera": {
-            "label": "相机",
+            "label": "展示与控制技术",
             "hidden": false,
             "examples": {
                 "first-person": {
-                    "label": "第一人称",
+                    "label": "自主漫游模式",
                     "hidden": false
                 },
                 "fly": {
                     "label": "飞行",
-                    "hidden": false
+                    "hidden": true
                 },
                 "multi": {
-                    "label": "多",
+                    "label": "模型展示自由控制",
                     "hidden": false
                 },
                 "orbit": {
-                    "label": "轨道",
+                    "label": "模型展示环绕控制",
                     "hidden": false
                 }
             }
         },
         "compute": {
             "label": "计算",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "edge-detect": {
                     "label": "边缘检测",
@@ -254,7 +254,7 @@ export const menuOverrides = {
         },
         "gaussian-splatting": {
             "label": "高斯泼溅",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "annotations": {
                     "label": "ANNOTATIONS",
@@ -380,7 +380,7 @@ export const menuOverrides = {
         },
         "gaussian-splatting-legacy": {
             "label": "高斯泼溅（旧版）",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "picking": {
                     "label": "拾取",
@@ -390,7 +390,7 @@ export const menuOverrides = {
         },
         "gaussian-splatting-xr": {
             "label": "高斯泼溅（XR）",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "vr-lod": {
                     "label": "VRLOD",
@@ -400,7 +400,7 @@ export const menuOverrides = {
         },
         "gizmos": {
             "label": "控件",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "transform-rotate": {
                     "label": "TRANSFORMROTATE",
@@ -418,7 +418,7 @@ export const menuOverrides = {
         },
         "graphics": {
             "label": "图形",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "ambient-occlusion": {
                     "label": "AMBIENTOCCLUSION",
@@ -676,7 +676,7 @@ export const menuOverrides = {
         },
         "input": {
             "label": "输入",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "gamepad": {
                     "label": "手柄",
@@ -694,7 +694,7 @@ export const menuOverrides = {
         },
         "loaders": {
             "label": "加载器",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "bundle": {
                     "label": "Bundle",
@@ -728,7 +728,7 @@ export const menuOverrides = {
         },
         "materials": {
             "label": "材质",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "anisotropy-disc": {
                     "label": "各向异性DISC",
@@ -794,7 +794,7 @@ export const menuOverrides = {
         },
         "misc": {
             "label": "杂项",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "animated-sprite": {
                     "label": "ANIMATEDSPRITE",
@@ -840,7 +840,7 @@ export const menuOverrides = {
         },
         "physics": {
             "label": "物理",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "compound-collision": {
                     "label": "COMPOUND碰撞",
@@ -866,7 +866,7 @@ export const menuOverrides = {
         },
         "shaders": {
             "label": "着色器",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "cloud-shadows": {
                     "label": "云阴影",
@@ -928,7 +928,7 @@ export const menuOverrides = {
         },
         "sound": {
             "label": "音频",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "positional": {
                     "label": "空间音频",
@@ -938,7 +938,7 @@ export const menuOverrides = {
         },
         "test": {
             "label": "测试",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "attenuation": {
                     "label": "ATTENUATION",
@@ -1012,7 +1012,7 @@ export const menuOverrides = {
         },
         "user-interface": {
             "label": "用户界面",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "button-basic": {
                     "label": "BUTTON基础",
@@ -1074,7 +1074,7 @@ export const menuOverrides = {
         },
         "xr": {
             "label": "XR",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "ar-anchors-persistence": {
                     "label": "ARANCHORSPERSISTENCE",

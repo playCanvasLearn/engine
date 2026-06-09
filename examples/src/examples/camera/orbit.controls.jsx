@@ -12,8 +12,8 @@ import { BindingTwoWay, LabelGroup, Panel, SliderInput, VectorInput } from '@pla
 export function Controls({ observer }) {
     return (
         <>
-            <Panel headerText='Attributes'>
-                <LabelGroup text='Rotate speed'>
+            <Panel headerText='参数设置'>
+                <LabelGroup text='旋转速度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.rotateSpeed' }}
@@ -22,7 +22,7 @@ export function Controls({ observer }) {
                         step={0.01}
                     />
                 </LabelGroup>
-                <LabelGroup text='Move speed'>
+                <LabelGroup text='移动速度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.moveSpeed' }}
@@ -30,7 +30,7 @@ export function Controls({ observer }) {
                         max={10}
                     />
                 </LabelGroup>
-                <LabelGroup text='Zoom speed'>
+                <LabelGroup text='缩放速度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.zoomSpeed' }}
@@ -40,7 +40,7 @@ export function Controls({ observer }) {
                         precision={3}
                     />
                 </LabelGroup>
-                <LabelGroup text='Zoom pinch sensitivity'>
+                <LabelGroup text='双指缩放灵敏度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.zoomPinchSens' }}
@@ -50,7 +50,7 @@ export function Controls({ observer }) {
                         precision={2}
                     />
                 </LabelGroup>
-                <LabelGroup text='Focus damping'>
+                <LabelGroup text='焦点阻尼'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.focusDamping' }}
@@ -60,7 +60,7 @@ export function Controls({ observer }) {
                         precision={3}
                     />
                 </LabelGroup>
-                <LabelGroup text='Rotate damping'>
+                <LabelGroup text='旋转阻尼'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.rotateDamping' }}
@@ -70,7 +70,7 @@ export function Controls({ observer }) {
                         precision={3}
                     />
                 </LabelGroup>
-                <LabelGroup text='Move damping'>
+                <LabelGroup text='移动阻尼'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.moveDamping' }}
@@ -80,7 +80,7 @@ export function Controls({ observer }) {
                         precision={3}
                     />
                 </LabelGroup>
-                <LabelGroup text='Zoom damping'>
+                <LabelGroup text='缩放阻尼'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.zoomDamping' }}
@@ -90,28 +90,28 @@ export function Controls({ observer }) {
                         precision={3}
                     />
                 </LabelGroup>
-                <LabelGroup text='Pitch range'>
+                <LabelGroup text='俯仰角范围'>
                     <VectorInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.pitchRange' }}
                         dimensions={2}
                     />
                 </LabelGroup>
-                <LabelGroup text='Yaw range'>
+                <LabelGroup text='偏航角范围'>
                     <VectorInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.yawRange' }}
                         dimensions={2}
                     />
                 </LabelGroup>
-                <LabelGroup text='Zoom range'>
+                <LabelGroup text='缩放范围'>
                     <VectorInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.zoomRange' }}
                         dimensions={2}
                     />
                 </LabelGroup>
-                <LabelGroup text='Zoom scale min'>
+                <LabelGroup text='最小缩放比例'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'attr.zoomScaleMin' }}

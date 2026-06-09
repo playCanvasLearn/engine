@@ -1070,14 +1070,14 @@ class Example extends TypedComponent {
                     ['mobile-dock-button', 'mobile-dock-examples'],
                 onClick: () => setMobilePanel?.('examples')
             }),
-            jsx(Button, {
+/*             jsx(Button, {
                 key: 'code',
                 text: 'Source',
                 class: mobilePanel === 'code' ?
                     ['mobile-dock-button', 'mobile-dock-code', 'selected'] :
                     ['mobile-dock-button', 'mobile-dock-code'],
                 onClick: () => setMobilePanel?.('code')
-            }),
+            }), */
             jsx(Button, {
                 key: 'controls',
                 text: 'Controls',
