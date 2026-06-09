@@ -81,6 +81,7 @@ function getDefaultMobilePanelWidth() {
  * @property {number} mobilePanelHeight - Active mobile panel height.
  * @property {number} mobilePanelWidth - Active mobile panel width.
  * @property {boolean} showCredits - Whether the desktop credits overlay is visible.
+ * @property {boolean} exampleLoading - Whether the current example is showing the loading overlay.
  */
 
 /** @type {typeof Component<Props, State>} */
@@ -101,7 +102,8 @@ class MainLayout extends TypedComponent {
             mobilePanel: getInitialMobilePanel(layout, panel),
             mobilePanelHeight: getMobilePanelHeight(height),
             mobilePanelWidth: getMobilePanelWidth(width),
-            showCredits: localStorage.getItem('showCredits') !== 'false'
+            showCredits: localStorage.getItem('showCredits') !== 'false',
+            exampleLoading: false
         };
     })();
 
@@ -265,8 +267,15 @@ class MainLayout extends TypedComponent {
         this.setState({ showCredits: value });
     };
 
+    /**
+     * @param {boolean} value - Example loading state.
+     */
+    setExampleLoading = (value) => {
+        this.setState({ exampleLoading: value });
+    };
+
     render() {
-        const { layout, mobileOrientation, mobilePanel, mobilePanelHeight, mobilePanelWidth, showCredits } = this.state;
+        const { layout, mobileOrientation, mobilePanel, mobilePanelHeight, mobilePanelWidth, showCredits, exampleLoading } = this.state;
         return jsx(
             'div',
             {
@@ -303,6 +312,7 @@ class MainLayout extends TypedComponent {
                                 { id: 'main-view-wrapper' },
                                 jsx(Menu, {
                                     layout,
+                                    loading: exampleLoading,
                                     setShowMiniStats: this.updateShowMiniStats.bind(this),
                                     showCredits,
                                     setShowCredits: this.setShowCredits
@@ -315,6 +325,7 @@ class MainLayout extends TypedComponent {
                                         layout,
                                         mobilePanel,
                                         setMobilePanel: this.setMobilePanel,
+                                        onLoadingVisibleChange: this.setExampleLoading,
                                         showCredits,
                                         onMobilePanelDragStart: this.startMobilePanelDrag
                                     })

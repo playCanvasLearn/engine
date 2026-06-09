@@ -13,7 +13,7 @@ export function Controls({ observer }) {
     return (
         <>
             <Button
-                text='Flash'
+                text='闪光'
                 onClick={() => {
                     observer.set('flash', !observer.get('flash'));
                 }}

@@ -159,24 +159,24 @@ export const menuOverrides = {
             }
         },
         "animation": {
-            "label": "动画",
+            "label": "数字人能力演示",
             "hidden": false,
             "examples": {
                 "blend-trees-1d": {
-                    "label": "混合树1D",
+                    "label": "数字人动作混合",
                     "hidden": false
                 },
                 "blend-trees-2d-cartesian": {
-                    "label": "混合树2D笛卡尔",
+                    "label": "数字人表情动作混合",
                     "hidden": false
                 },
                 "blend-trees-2d-directional": {
                     "label": "混合树2D定向",
-                    "hidden": false
+                    "hidden": true
                 },
                 "component-properties": {
                     "label": "组件属性",
-                    "hidden": false
+                    "hidden": true
                 },
                 "events": {
                     "label": "事件",

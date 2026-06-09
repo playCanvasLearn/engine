@@ -240,6 +240,7 @@ const createState = () => {
  * @property {'mobile'|'desktop'} [layout] - Current layout.
  * @property {null|'examples'|'code'|'controls'|'description'} [mobilePanel] - Active mobile panel.
  * @property {(mobilePanel: null|'examples'|'code'|'controls'|'description') => void} [setMobilePanel] - Set active mobile panel.
+ * @property {(visible: boolean) => void} [onLoadingVisibleChange] - Notify parent when loading overlay visibility changes.
  * @property {boolean} [showCredits] - Whether the desktop credits overlay is visible.
  * @property {(event: PointerEvent | import('react').PointerEvent<HTMLElement>) => void} [onMobilePanelDragStart] - Start mobile panel drag.
  */
@@ -616,10 +617,17 @@ class Example extends TypedComponent {
 
     /**
      * @param {Props} prevProps - Previous component properties.
+     * @param {State} prevState - Previous component state.
      */
-    componentDidUpdate(prevProps) {
+    componentDidUpdate(prevProps, prevState) {
         const prevParams = prevProps.match.params;
         const params = this.props.match.params;
+        if (prevProps.onLoadingVisibleChange !== this.props.onLoadingVisibleChange || prevProps.layout !== this.props.layout) {
+            this.props.onLoadingVisibleChange?.(this.state.loadingVisible);
+        }
+        if (this.state.loadingVisible !== prevState.loadingVisible) {
+            this.props.onLoadingVisibleChange?.(this.state.loadingVisible);
+        }
         if (prevParams.category !== params.category || prevParams.example !== params.example) {
             window.dispatchEvent(new Event(CLOSE_SELECTS_EVENT));
             this.bindObserver(null);
@@ -634,6 +642,7 @@ class Example extends TypedComponent {
     }
 
     componentWillUnmount() {
+        this.props.onLoadingVisibleChange?.(false);
         window.dispatchEvent(new Event(CLOSE_SELECTS_EVENT));
         this.bindObserver(null);
         this._controlPanelScrollRegion?.removeEventListener('scroll', this._handleControlPanelScroll);
@@ -1264,9 +1273,9 @@ class Example extends TypedComponent {
                 src: iframePath,
                 onLoad: this._handleIframeLoad
             }),
-            !external && layout !== 'mobile' && this.renderDescription(),
-            !external && layout !== 'mobile' && this.renderCreditsOverlay(),
-            !external && (layout === 'mobile' ? this.renderMobile() : this.renderDesktop())
+            !external && !loading && layout !== 'mobile' && this.renderDescription(),
+            !external && !loading && layout !== 'mobile' && this.renderCreditsOverlay(),
+            !external && !loading && (layout === 'mobile' ? this.renderMobile() : this.renderDesktop())
         );
     }
 }

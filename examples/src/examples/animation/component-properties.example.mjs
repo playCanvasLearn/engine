@@ -183,7 +183,7 @@ assetListLoader.load(() => {
     const material = new pc.StandardMaterial();
     material.diffuseMap = assets.playcanvasGreyTexture.resource;
     material.update();
-    boxEntity.render.meshInstances[0].material = material;
+    //boxEntity.render.meshInstances[0].material = material;
 
     const planeEntity = new pc.Entity();
     planeEntity.name = 'plane';

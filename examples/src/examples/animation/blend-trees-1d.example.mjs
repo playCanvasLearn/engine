@@ -1,3 +1,8 @@
+// @config
+//
+// 通过参数blend精确控制数字人动作
+// 应用场景：用于产线巡检 / 设备操作辅助 / 安全规范演示 / 新员工培训 / 远程协作指导
+
 import * as pc from 'playcanvas';
 
 import { data, deviceType } from 'examples/context';
@@ -5,13 +10,23 @@ import { data, deviceType } from 'examples/context';
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('application-canvas'));
 window.focus();
 
+//  Draco 压缩 的 glb 模型处理，初始化 Draco 解码器
+pc.WasmModule.setConfig('DracoDecoderModule', {
+    glueUrl: './assets/wasm/draco/draco.wasm.js',
+    wasmUrl: './assets/wasm/draco/draco.wasm.wasm',
+    fallbackUrl: './assets/wasm/draco/draco.js'
+});
+await new Promise((resolve) => {
+    pc.WasmModule.getInstance('DracoDecoderModule', () => resolve());
+});
+
 const assets = {
-    //model: new pc.Asset('model', 'container', { url: './assets/models/bitmoji.glb' }),
+    // model: new pc.Asset('model', 'container', { url: './assets/models/bitmoji.glb' }),
     model: new pc.Asset('model', 'container', { url: './assets/scene/models/robot.glb' }),
-    idleAnim: new pc.Asset('idleAnim', 'container', { url: './assets/animations/bitmoji/idle.glb' }),
-    danceAnim: new pc.Asset('danceAnim', 'container', {
-        url: './assets/animations/bitmoji/win-dance.glb'
-    }),
+    // idleAnim: new pc.Asset('idleAnim', 'container', { url: './assets/animations/bitmoji/idle.glb' }),
+    // danceAnim: new pc.Asset('danceAnim', 'container', {
+    //     url: './assets/animations/bitmoji/win-dance.glb'
+    // }),
     helipad: new pc.Asset(
         'helipad-env-atlas',
         'texture',
@@ -90,7 +105,7 @@ assetListLoader.load(() => {
     const modelEntity = assets.model.resource.instantiateRenderEntity({
         castShadows: true
     });
-
+    modelEntity.setLocalScale(0.008, 0.008, 0.008);
     // add an anim component to the entity
     modelEntity.addComponent('anim', {
         activate: true
@@ -148,9 +163,10 @@ assetListLoader.load(() => {
 
     // load the state graph asset resource into the anim component
     const characterStateLayer = modelEntity.anim.baseLayer;
-    characterStateLayer.assignAnimation('Movement.Idle', assets.idleAnim.resource.animations[0].resource);
-    characterStateLayer.assignAnimation('Movement.Dance', assets.danceAnim.resource.animations[0].resource);
-
+    characterStateLayer.assignAnimation('Movement.Idle', assets.model.resource.animations[1].resource);
+    characterStateLayer.assignAnimation('Movement.Dance', assets.model.resource.animations[2].resource);
+    // 打印动画信息
+    // console.log(assets.model.resource.animations);
     app.root.addChild(modelEntity);
 
     data.on('blend:set', (/** @type {number} */ blend) => {

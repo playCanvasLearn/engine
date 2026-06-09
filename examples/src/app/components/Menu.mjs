@@ -16,6 +16,7 @@ import { getLayout } from '../utils.mjs';
  * @typedef {object} Props
  * @property {(value: boolean) => void} setShowMiniStats - The state set function .
  * @property {'mobile'|'desktop'} [layout] - Current layout.
+ * @property {boolean} [loading] - Whether the example is loading.
  * @property {boolean} showCredits - Whether the desktop credits overlay is visible.
  * @property {(value: boolean) => void} setShowCredits - Set credits overlay visibility.
  */
@@ -213,7 +214,7 @@ class Menu extends TypedComponent {
         const meta = list.find(item =>
             item.categoryKebab === categoryKebab && item.exampleNameKebab === exampleNameKebab
         );
-        if ((meta && typeof meta.externalUrl === 'string' && meta.externalUrl) || isMenuHiddenForPath(path)) {
+        if (this.props.loading || (meta && typeof meta.externalUrl === 'string' && meta.externalUrl) || isMenuHiddenForPath(path)) {
             return null;
         }
         const { showMiniStats, hasCredits, shareDialogOpen, shareUrl, shareTitle } = this.state;

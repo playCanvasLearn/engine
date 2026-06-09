@@ -1,3 +1,8 @@
+// @config
+//
+// 数字人常见动作 + 表情
+// 应用场景：用于产线巡检 / 设备操作辅助 / 安全规范演示 / 新员工培训 / 远程协作指导
+
 import * as pc from 'playcanvas';
 
 import { data, deviceType } from 'examples/context';
