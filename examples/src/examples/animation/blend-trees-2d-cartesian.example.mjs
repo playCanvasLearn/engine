@@ -12,7 +12,7 @@ window.focus();
 
 const assets = {
     playcanvasGreyTexture: new pc.Asset('playcanvasGreyTexture', 'texture', {
-        url: './assets/textures/floor_01.jpg'
+        url: './assets/textures/BlackTiles07_1K_Roughness.png'
     }),
     model: new pc.Asset('model', 'container', { url: './assets/models/bitmoji.glb' }),
     idleAnim: new pc.Asset('idleAnim', 'container', { url: './assets/animations/bitmoji/idle.glb' }),
@@ -447,7 +447,7 @@ assetListLoader.load(() => {
     assets.playcanvasGreyTexture.resource.addressU = pc.ADDRESS_REPEAT;
     assets.playcanvasGreyTexture.resource.addressV = pc.ADDRESS_REPEAT;
     material.diffuseMap = assets.playcanvasGreyTexture.resource;
-    material.diffuseMapTiling = new pc.Vec2(20, 20);
+    // material.diffuseMapTiling = new pc.Vec2(10, 10);
     material.update();
     planeEntity.render.meshInstances[0].material = material;
     app.root.addChild(planeEntity);
