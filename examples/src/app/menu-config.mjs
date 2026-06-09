@@ -147,7 +147,7 @@ export const menuOverrides = {
     },
     categories: {
         "scene": {
-            "label": "场景演示",
+            "label": "场景综合演示",
             "hidden": false,
             "order": 100,
             "examples": {
@@ -180,19 +180,19 @@ export const menuOverrides = {
                 },
                 "events": {
                     "label": "事件",
-                    "hidden": false
+                    "hidden": true
                 },
                 "layer-masks": {
                     "label": "层遮罩",
-                    "hidden": false
+                    "hidden": true
                 },
                 "locomotion": {
                     "label": "行走",
-                    "hidden": false
+                    "hidden": true
                 },
                 "tween": {
                     "label": "补间",
-                    "hidden": false
+                    "hidden": true
                 }
             }
         },
