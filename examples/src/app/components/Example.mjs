@@ -33,7 +33,7 @@ import { getLayout } from '../utils.mjs';
  */
 
 const SETTLE_WINDOW_MS = 2000;
-const MIN_LOADING_MS = 3000;
+const MIN_LOADING_MS = 0;
 
 /** @typedef {{ categoryKebab: string, exampleNameKebab: string, externalUrl?: string }} ExampleMetaItem */
 

@@ -65,7 +65,7 @@ const main = async () => {
     }
 
     if (values.thumbnails) {
-        await buildMetadata();
+        // await buildMetadata();
         await buildThumbnails({
             clean: values.clean,
             debug: values.debug
