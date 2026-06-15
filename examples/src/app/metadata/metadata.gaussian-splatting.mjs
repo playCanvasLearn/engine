@@ -14,7 +14,31 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\gaussian-splatting",
         categoryKebab: "gaussian-splatting",
+        exampleNameKebab: "billions",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\gaussian-splatting",
+        categoryKebab: "gaussian-splatting",
+        exampleNameKebab: "clipping",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\gaussian-splatting",
+        categoryKebab: "gaussian-splatting",
         exampleNameKebab: "crop",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\gaussian-splatting",
+        categoryKebab: "gaussian-splatting",
+        exampleNameKebab: "depth-of-field",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\gaussian-splatting",
+        categoryKebab: "gaussian-splatting",
+        exampleNameKebab: "downtown",
         hidden: false
     },
     {
@@ -110,13 +134,31 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\gaussian-splatting",
         categoryKebab: "gaussian-splatting",
+        exampleNameKebab: "relighting",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\gaussian-splatting",
+        categoryKebab: "gaussian-splatting",
         exampleNameKebab: "reveal",
         hidden: false
     },
     {
         path: "src\\examples\\gaussian-splatting",
         categoryKebab: "gaussian-splatting",
+        exampleNameKebab: "shader-dissolve",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\gaussian-splatting",
+        categoryKebab: "gaussian-splatting",
         exampleNameKebab: "shader-effects",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\gaussian-splatting",
+        categoryKebab: "gaussian-splatting",
+        exampleNameKebab: "shader-rings",
         hidden: false
     },
     {

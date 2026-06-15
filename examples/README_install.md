@@ -13,3 +13,20 @@ npm run build:thumbnails -- --clean
 
 ### 生成缩略图debug
 npm run build:thumbnails -- --debug
+
+
+### 安装
+
+engine 目录运行
+```sh
+npm install 
+```
+
+example 目录运行
+```sh
+npm run dev 
+
+npm install
+npm run build
+npm run serve
+```

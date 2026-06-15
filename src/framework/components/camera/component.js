@@ -192,6 +192,9 @@ class CameraComponent extends Component {
      * - {@link SHADERPASS_LIGHTING}
      * - {@link SHADERPASS_UV0}
      *
+     * The returned index can be used with {@link MeshInstance#shaderPassMask} to control which mesh
+     * instances are rendered in this pass.
+     *
      * @returns {number} The id of the shader pass.
      */
     setShaderPass(name) {
@@ -1235,7 +1238,7 @@ class CameraComponent extends Component {
         this.system.removeCamera(this);
     }
 
-    onRemove() {
+    onBeforeRemove() {
         this.onDisable();
         this.off();
 

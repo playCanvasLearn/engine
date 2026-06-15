@@ -328,27 +328,6 @@ class ElementComponent extends Component {
     }
 
     /**
-     * Sets the enabled state of the component.
-     *
-     * @type {boolean}
-     */
-    set enabled(value) {
-        const data = this.data;
-        const oldValue = data.enabled;
-        data.enabled = value;
-        this.fire('set', 'enabled', oldValue, value);
-    }
-
-    /**
-     * Gets the enabled state of the component.
-     *
-     * @type {boolean}
-     */
-    get enabled() {
-        return this.data.enabled;
-    }
-
-    /**
      * @type {number}
      * @private
      */
@@ -2595,7 +2574,7 @@ class ElementComponent extends Component {
         this.fire('disableelement');
     }
 
-    onRemove() {
+    onBeforeRemove() {
         this.entity.off('insert', this._onInsert, this);
         this._unpatch();
         if (this._image) {

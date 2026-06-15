@@ -705,6 +705,10 @@ class RigidBodyComponent extends Component {
                 body.activate();
 
                 this._simulationEnabled = true;
+
+                // internal event consumed by the joint system to (re)create constraints
+                // against bodies that are present in the dynamics world
+                this.fire('simulationenabled');
             }
         }
     }
@@ -741,6 +745,12 @@ class RigidBodyComponent extends Component {
             body.forceActivationState(BODYSTATE_DISABLE_SIMULATION);
 
             this._simulationEnabled = false;
+
+            // internal event consumed by the joint system to destroy constraints that reference
+            // this body. The body has just been removed from the dynamics world above and is now
+            // inert, but is still a valid object - tearing the constraints down here keeps them
+            // from referencing the body once it is later destroyed or rebuilt.
+            this.fire('simulationdisabled');
         }
     }
 
@@ -1094,8 +1104,8 @@ class RigidBodyComponent extends Component {
 
                 const component = entity.collision;
                 if (component && component._hasOffset) {
-                    const lo = component.data.linearOffset;
-                    const ao = component.data.angularOffset;
+                    const lo = component.linearOffset;
+                    const ao = component.angularOffset;
 
                     // Un-rotate the angular offset and then use the new rotation to
                     // un-translate the linear offset in local space

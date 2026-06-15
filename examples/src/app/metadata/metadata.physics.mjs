@@ -14,7 +14,19 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\physics",
         categoryKebab: "physics",
+        exampleNameKebab: "joints",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\physics",
+        categoryKebab: "physics",
         exampleNameKebab: "offset-collision",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\physics",
+        categoryKebab: "physics",
+        exampleNameKebab: "ragdoll",
         hidden: false
     },
     {

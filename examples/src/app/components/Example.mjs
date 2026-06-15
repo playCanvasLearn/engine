@@ -12,6 +12,7 @@ import { ErrorBoundary } from './ErrorBoundary.mjs';
 import { SelectInput as OverlaySelectInput } from './OverlaySelectInput.mjs';
 import { COLOR_NAMES, INLINE_MD_PATTERN, SAFE_URL_PATTERN } from '../../../utils/inline-markdown.mjs';
 import { CLOSE_SELECTS_EVENT } from '../constants.mjs';
+import { setExampleSnapshotProvider } from '../example-snapshot.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx, fragment } from '../jsx.mjs';
 import { exampleMetaData } from '../metadata.mjs';
@@ -597,8 +598,28 @@ class Example extends TypedComponent {
         controlPanelHeader.onclick = () => this.toggleCollapse();
     }
 
+    /**
+     * Captures the example's current control overrides as a flat dot-path map — the same state the
+     * share feature persists — so the exported project can replay it after the example loads.
+     *
+     * @returns {Record<string, any>} The flattened control state.
+     */
+    _captureControls() {
+        /** @type {Record<string, any>} */
+        const flat = {};
+        flattenLeaves(readState().controls ?? {}, '', flat);
+        return flat;
+    }
+
     componentDidMount() {
         this.setupControlPanel();
+        setExampleSnapshotProvider(() => ({
+            files: this.state.files,
+            category: this.props.match.params.category,
+            example: this.props.match.params.example,
+            data: this._captureControls(),
+            credits: this.state.credits
+        }));
         window.addEventListener('resize', this._onLayoutChange);
         window.addEventListener('requestedFiles', this._handleRequestedFiles);
         window.addEventListener('orientationchange', this._onLayoutChange);
@@ -642,6 +663,7 @@ class Example extends TypedComponent {
     }
 
     componentWillUnmount() {
+        setExampleSnapshotProvider(null);
         this.props.onLoadingVisibleChange?.(false);
         window.dispatchEvent(new Event(CLOSE_SELECTS_EVENT));
         this.bindObserver(null);
@@ -794,7 +816,7 @@ class Example extends TypedComponent {
             ' by ',
             jsx('span', { className: 'example-credit-author' }, credit.author)
         );
-        /** @type {(ReactElement | string)[]} */
+        /** @type {(string | ReactElement)[]} */
         const children = [source ? this.renderCreditLink(source[1], label) : label];
         if (!source && credit.source) {
             children.push(' \u00b7 ', credit.source);

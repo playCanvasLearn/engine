@@ -74,6 +74,16 @@ class GSplatHybridRenderer extends GSplatRenderer {
     /** @type {boolean} */
     forceCopyMaterial = true;
 
+    /** @type {string} */
+    _lastSourceChunksKey = '';
+
+    /**
+     * The projection cache stride in u32 words: the base layout plus user varying stream words.
+     *
+     * @type {number}
+     */
+    _cacheStride = CACHE_STRIDE;
+
     /**
      * @param {GraphicsDevice} device - The graphics device.
      * @param {GraphNode} node - The graph node.
@@ -110,6 +120,7 @@ class GSplatHybridRenderer extends GSplatRenderer {
         this._internalDefines.add('PICK_CUSTOM_ID');
         this._internalDefines.add('GSPLAT_OVERDRAW');
         this._internalDefines.add('GSPLAT_NO_FOG');
+        this._internalDefines.add('GSPLAT_XR');
 
         this.meshInstance = this.createMeshInstance();
     }
@@ -165,6 +176,22 @@ class GSplatHybridRenderer extends GSplatRenderer {
         this._material.blendType = dither ? BLEND_NONE : BLEND_PREMULTIPLIED;
         this._material.depthWrite = !!dither;
         this._material.update();
+    }
+
+    /**
+     * Toggles the XR stereo (GSPLAT_XR) variant of the forward material. The vertex shader then
+     * reads the per-eye stereo projection-cache layout and selects the eye via `view_index`. Only
+     * recompiles when the stereo state changes, so it is cheap to call every frame. Must stay in
+     * sync with the projector's stereo variant (both driven by the same isStereo value).
+     *
+     * @param {boolean} enabled - Whether stereo (2-view) rendering is active.
+     */
+    setStereo(enabled) {
+        // The material is the single source of truth; only recompile when the state actually changes.
+        if (this._material.getDefine('GSPLAT_XR') !== enabled) {
+            this._material.setDefine('GSPLAT_XR', enabled);
+            this._material.update();
+        }
     }
 
     update(count, textureSize) {
@@ -225,7 +252,7 @@ class GSplatHybridRenderer extends GSplatRenderer {
             });
 
             this._pickMaterial.setDefine('{GSPLAT_INSTANCE_SIZE}', GSplatResourceBase.instanceSize);
-            this._pickMaterial.setDefine('{CACHE_STRIDE}', CACHE_STRIDE);
+            this._pickMaterial.setDefine('{CACHE_STRIDE}', this._cacheStride);
             this._pickMaterial.setDefine('SH_BANDS', '0');
             this._pickMaterial.setDefine('GSPLAT_INDIRECT_DRAW', true);
             this._pickMaterial.setDefine('DITHER_NONE', '');
@@ -331,6 +358,76 @@ class GSplatHybridRenderer extends GSplatRenderer {
             this._material.setDefine('GSPLAT_NO_FOG', noFog);
             this._material.update();
         }
+
+        // keep the projection cache stride in sync with the user varying streams
+        const cacheStride = CACHE_STRIDE + params.varyings.words;
+        if (cacheStride !== this._cacheStride) {
+            this._cacheStride = cacheStride;
+            this._material.setDefine('{CACHE_STRIDE}', cacheStride);
+            this._material.update();
+            if (this._pickMaterial) {
+                this._pickMaterial.setDefine('{CACHE_STRIDE}', cacheStride);
+                this._pickMaterial.update();
+            }
+        }
+
+        // Copy material settings from params.material if dirty or on first update
+        if (this.forceCopyMaterial || params.material.dirty) {
+            this.copyMaterialSettings(params.material);
+            this.forceCopyMaterial = false;
+        }
+    }
+
+    /**
+     * Copies material settings from a source material to the internal material.
+     * Preserves internal defines while copying user defines, parameters, and shader chunks.
+     * This delivers user customizations (e.g. the `gsplatModifyPS` fragment chunk and its
+     * parameters) set on `app.scene.gsplat.material` to the hybrid render material. Note that
+     * the `gsplatModifyVS` chunk is handled by the projector compute instead, and even when
+     * copied here it is not referenced by the hybrid vertex shader.
+     *
+     * @param {ShaderMaterial} sourceMaterial - The source material to copy settings from.
+     * @private
+     */
+    copyMaterialSettings(sourceMaterial) {
+        // Sync defines via setDefine so _definesDirty tracks real changes. Only delete keys the
+        // source no longer has (and that aren't internal). Deleting all user defines and re-adding
+        // them every frame would force _definesDirty true forever and trigger clearVariants on
+        // every frame.
+        const keysToDelete = [];
+        this._material.defines.forEach((value, key) => {
+            if (!this._internalDefines.has(key) && !sourceMaterial.defines.has(key)) {
+                keysToDelete.push(key);
+            }
+        });
+        keysToDelete.forEach(key => this._material.setDefine(key, undefined));
+
+        // Add/update defines from the source. setDefine is conditional — it only flips
+        // _definesDirty when the value actually changed, so unchanged entries stay cheap.
+        sourceMaterial.defines.forEach((value, key) => {
+            this._material.setDefine(key, value);
+        });
+
+        // Copy parameters
+        const srcParams = sourceMaterial.parameters;
+        for (const paramName in srcParams) {
+            if (srcParams.hasOwnProperty(paramName)) {
+                this._material.setParameter(paramName, srcParams[paramName].data);
+            }
+        }
+
+        // Copy shader chunks only when they actually changed on the source (chunks.key is a
+        // stable content hash), to avoid marking chunks dirty every frame and forcing a
+        // per-frame clearVariants.
+        if (sourceMaterial.hasShaderChunks) {
+            const sourceChunksKey = sourceMaterial.shaderChunks.key;
+            if (sourceChunksKey !== this._lastSourceChunksKey) {
+                this._material.shaderChunks.copy(sourceMaterial.shaderChunks);
+                this._lastSourceChunksKey = sourceChunksKey;
+            }
+        }
+
+        this._material.update();
     }
 
     /**

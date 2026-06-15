@@ -98,7 +98,7 @@
     "acorn": "8.16.0",
     "c8": "11.0.0",
     "chai": "6.2.2",
-    "esbuild": "0.28.0",
+    "esbuild": "0.28.1",
     "esbuild-visualizer": "0.7.0",
     "eslint": "9.39.4",
     "fflate": "0.8.3",
@@ -152,7 +152,8 @@
     "lint": "eslint scripts src test utils build.mjs eslint.config.mjs rollup.config.mjs",
     "publint": "publint --level error",
     "serve": "serve build -l 51000 --cors",
-    "test": "mocha --ignore \"test/assets/scripts/*.js\" --recursive --require test/fixtures.mjs --timeout 5000",
+    "test": "mocha --ignore \"test/assets/scripts/*.js\" --ignore \"test/bundles/**\" --recursive --require test/fixtures.mjs --timeout 5000",
+    "test:build": "mocha --recursive \"test/bundles/**/*.test.mjs\" --timeout 30000",
     "test:coverage": "c8 npm test",
     "test:types": "tsc --pretty false build/playcanvas.d.ts"
   },

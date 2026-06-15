@@ -55,68 +55,6 @@ const TEXT_LOADERS = {
     '.txt': 'text'
 };
 
-/**
- * @template T
- * @param {string} input - source label.
- * @param {string} output - output label.
- * @param {() => T | Promise<T>} task - task to time.
- * @returns {Promise<T>} task result.
- */
-const timed = (input, output, task) => {
-    startLog(input, output);
-    const start = performance.now();
-    return Promise.resolve(task()).then((result) => {
-        createdLog(output, performance.now() - start);
-        return result;
-    }, (err) => {
-        failedLog(output, performance.now() - start);
-        throw err;
-    });
-};
-
-/**
- * @param {CopyTarget[]} sources - source files.
- * @returns {Promise<void>} completion promise.
- */
-const writeSources = async (sources) => {
-    await Promise.all(sources.map(async ({ src, dest }) => {
-        await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-        const source = await fs.promises.readFile(src, 'utf8');
-        await fs.promises.writeFile(dest, transformSource(source));
-    }));
-};
-
-/**
- * @returns {EsbuildPlugin} esbuild plugin.
- */
-const urlExternalPlugin = () => {
-    return {
-        name: 'url-external',
-        setup(build) {
-            build.onResolve({ filter: /^https?:\/\// }, args => ({
-                path: args.path,
-                external: true
-            }));
-        }
-    };
-};
-
-/**
- * @param {Record<string, string>} entryPoints - entry point map.
- * @param {string[]} external - external modules.
- * @returns {EsbuildOptions} esbuild options.
- */
-const exampleOptions = (entryPoints, external) => ({
-    entryPoints,
-    bundle: true,
-    format: 'esm',
-    platform: 'browser',
-    target: EXAMPLE_TARGET,
-    outdir: IFRAME_DIR,
-    outExtension: {
-        '.js': '.mjs'
-    },
-    loader: TEXT_LOADERS,
     external,
     plugins: [
         urlExternalPlugin()

@@ -5,6 +5,7 @@ import {
 } from '../../platform/graphics/constants.js';
 import { ShaderMaterial } from '../materials/shader-material.js';
 import { GSplatFormat } from '../gsplat/gsplat-format.js';
+import { GSplatVaryings } from './gsplat-varyings.js';
 import {
     GSPLATDATA_COMPACT,
     GSPLAT_RENDERER_AUTO, GSPLAT_RENDERER_RASTER_CPU_SORT,
@@ -67,11 +68,14 @@ class GSplatParams {
     constructor(device) {
         this._device = device;
         this._format = this._createFormat(GSPLATDATA_COMPACT);
+        this._varyings = new GSplatVaryings(device);
 
         this._material.setParameter('alphaClip', 0.3);
         this._material.setParameter('alphaClipForward', 1.0 / 255.0);
         this._material.setParameter('minPixelSize', 2.0);
         this._material.setParameter('minContribution', 3.0);
+        this._material.setParameter('foveationStrength', 0);
+        this._material.setParameter('foveationCenter', 0.3);
     }
 
     /**
@@ -659,6 +663,53 @@ class GSplatParams {
     }
 
     /**
+     * Sets the foveated contribution culling strength. Only used by the
+     * {@link GSPLAT_RENDERER_RASTER_GPU_SORT} renderer. When greater than zero, the contribution
+     * culling threshold is raised radially from the screen centre: the effective threshold is
+     * `minContribution + foveationStrength * smoothstep(foveationCenter, 1, length(ndc))`, so the
+     * centre of the screen is unaffected and low-contribution splats are culled increasingly
+     * toward the edges, reaching full strength at the screen edge and beyond (corners). Set to 0
+     * to disable. Defaults to 0.
+     *
+     * @type {number}
+     */
+    set foveationStrength(value) {
+        this._material.setParameter('foveationStrength', value);
+        this._material.update();
+    }
+
+    /**
+     * Gets the foveated contribution culling strength.
+     *
+     * @type {number}
+     */
+    get foveationStrength() {
+        return this._material.getParameter('foveationStrength')?.data ?? 0;
+    }
+
+    /**
+     * Sets the protected centre radius for foveated contribution culling. Only used by the
+     * {@link GSPLAT_RENDERER_RASTER_GPU_SORT} renderer. Expressed in NDC radius units (0 at the
+     * screen centre, 1 at the edge): within this radius {@link foveationStrength} has no effect,
+     * and the falloff ramps smoothly from this radius to the screen edge. Defaults to 0.3.
+     *
+     * @type {number}
+     */
+    set foveationCenter(value) {
+        this._material.setParameter('foveationCenter', value);
+        this._material.update();
+    }
+
+    /**
+     * Gets the protected centre radius for foveated contribution culling.
+     *
+     * @type {number}
+     */
+    get foveationCenter() {
+        return this._material.getParameter('foveationCenter')?.data ?? 0.3;
+    }
+
+    /**
      * Enables anti-aliasing compensation for Gaussian splats. Defaults to false.
      *
      * This option is intended for splat data that was generated with anti-aliasing
@@ -838,6 +889,39 @@ class GSplatParams {
     }
 
     /**
+     * @type {GSplatVaryings}
+     * @private
+     */
+    _varyings;
+
+    /**
+     * The varyings version last applied to the material.
+     *
+     * @type {number}
+     * @private
+     */
+    _appliedVaryingsVersion = 0;
+
+    /**
+     * Custom varying streams for the gsplat render customization: per-splat values written by
+     * the `gsplatModifyVS` shader chunk and read per fragment by the `gsplatModifyPS` shader
+     * chunk. See {@link GSplatVaryings}.
+     *
+     * @type {GSplatVaryings}
+     * @example
+     * // Add a per-splat flag, written once per splat in gsplatModifyVS using setFlag(value),
+     * // and read per fragment in gsplatModifyPS using getFlag()
+     * app.scene.gsplat.varyings.add([{
+     *     name: 'flag',
+     *     type: pc.TYPE_UINT32,
+     *     components: 1
+     * }]);
+     */
+    get varyings() {
+        return this._varyings;
+    }
+
+    /**
      * Called at the end of the frame to clear dirty flags.
      *
      * @ignore
@@ -845,6 +929,19 @@ class GSplatParams {
     frameEnd() {
         this._material.dirty = false;
         this.dirty = false;
+    }
+
+    /**
+     * Called at the start of the frame, before the renderers synchronize the material, to apply
+     * pending changes.
+     *
+     * @ignore
+     */
+    frameUpdate() {
+        if (this._appliedVaryingsVersion !== this._varyings.version) {
+            this._appliedVaryingsVersion = this._varyings.version;
+            this._varyings.apply(this._material);
+        }
     }
 }
 
