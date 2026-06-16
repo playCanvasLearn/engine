@@ -7,7 +7,18 @@ import { exampleMetaData } from '../metadata.mjs';
 import { VERSION } from '../constants.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx } from '../jsx.mjs';
-import { compareCategories, compareExamples, getCategoryLabel, getExampleLabel, isCategoryHidden, isExampleHidden, isSidebarHiddenForPath, menuConfig } from '../menu-config.mjs';
+import {
+    compareCategories,
+    compareExamples,
+    getCategoryLabel,
+    getExampleLabel,
+    isCategoryHidden,
+    isExampleHidden,
+    isSidebarCategoryCollapsed,
+    isSidebarHiddenForPath,
+    menuConfig,
+    writeSidebarCategoryCollapsedCache
+} from '../menu-config.mjs';
 import { thumbnailPath } from '../paths.mjs';
 import { getHashPath, patchState, readState } from '../url-state.mjs';
 import { getLayout } from '../utils.mjs';
@@ -37,6 +48,7 @@ import { getLayout } from '../utils.mjs';
  * @type {typeof Component<Props, State>}
  */
 const TypedComponent = Component;
+const CATEGORY_PANEL_ID_PREFIX = 'category-panel-';
 
 /**
  * @returns {Record<string, { label: string, examples: Record<string, string> }>} - The category files.
@@ -163,6 +175,9 @@ class SideBar extends TypedComponent {
     /** @type {{ unbind: () => void } | null} */
     _largeThumbnailsHandle = null;
 
+    /** @type {HTMLElement | null} */
+    _categoryPanelsContainer = null;
+
     /**
      * @param {Props} props - Component properties.
      */
@@ -171,6 +186,8 @@ class SideBar extends TypedComponent {
         this._onLayoutChange = this._onLayoutChange.bind(this);
         this._onClickExample = this._onClickExample.bind(this);
         this._onLargeThumbnailsSet = this._onLargeThumbnailsSet.bind(this);
+        this._onCategoryPanelHeaderClick = this._onCategoryPanelHeaderClick.bind(this);
+        this._onThumbnailError = this._onThumbnailError.bind(this);
     }
 
     setupSideBar() {
@@ -198,17 +215,21 @@ class SideBar extends TypedComponent {
     componentDidMount() {
         this._largeThumbnailsHandle = this.state.observer.on('largeThumbnails:set', this._onLargeThumbnailsSet);
         this.setupSideBar();
+        this.setupCategoryCollapsePersistence();
         window.addEventListener('resize', this._onLayoutChange);
         window.addEventListener('orientationchange', this._onLayoutChange);
     }
 
     componentDidUpdate() {
         this.setupSideBar();
+        this.setupCategoryCollapsePersistence();
     }
 
     componentWillUnmount() {
         this._largeThumbnailsHandle?.unbind();
         this._largeThumbnailsHandle = null;
+        this._categoryPanelsContainer?.removeEventListener('click', this._onCategoryPanelHeaderClick);
+        this._categoryPanelsContainer = null;
         window.removeEventListener('resize', this._onLayoutChange);
         window.removeEventListener('orientationchange', this._onLayoutChange);
     }
@@ -269,6 +290,42 @@ class SideBar extends TypedComponent {
         patchState({ ui: { sideBarCollapsed: !collapsed } });
     }
 
+    setupCategoryCollapsePersistence() {
+        const container = document.getElementById('sideBar-contents');
+        if (this._categoryPanelsContainer === container) {
+            return;
+        }
+        this._categoryPanelsContainer?.removeEventListener('click', this._onCategoryPanelHeaderClick);
+        this._categoryPanelsContainer = container;
+        this._categoryPanelsContainer?.addEventListener('click', this._onCategoryPanelHeaderClick);
+    }
+
+    _onCategoryPanelHeaderClick(event) {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+        const header = target.closest('.categoryPanel .pcui-panel-header');
+        if (!(header instanceof HTMLElement)) {
+            return;
+        }
+        const panel = header.closest('.categoryPanel');
+        if (!(panel instanceof HTMLElement) || !panel.id.startsWith(CATEGORY_PANEL_ID_PREFIX)) {
+            return;
+        }
+        const categoryKebab = panel.id.slice(CATEGORY_PANEL_ID_PREFIX.length);
+        if (!categoryKebab) {
+            return;
+        }
+        window.requestAnimationFrame(() => {
+            writeSidebarCategoryCollapsedCache(categoryKebab, panel.classList.contains('pcui-collapsed'));
+        });
+    }
+
+    _onThumbnailError(event) {
+        event.currentTarget.style.display = 'none';
+    }
+
     _onLayoutChange() {
         this.mergeState({ layout: getLayout() });
     }
@@ -314,10 +371,11 @@ class SideBar extends TypedComponent {
                 Panel,
                 {
                     key: category,
+                    id: `${CATEGORY_PANEL_ID_PREFIX}${category}`,
                     class: 'categoryPanel',
                     headerText: categories[category].label ?? category.split('-').join(' ').toUpperCase(),
                     collapsible: true,
-                    collapsed: false
+                    collapsed: isSidebarCategoryCollapsed(category)
                 },
                 jsx(
                     'ul',
@@ -343,12 +401,14 @@ class SideBar extends TypedComponent {
                                 jsx('img', {
                                     className: 'small-thumbnail',
                                     loading: 'lazy',
-                                    src: `${thumbnailPath}${category}_${example}_small.webp`
+                                    src: `${thumbnailPath}${category}_${example}_small.webp`,
+                                    onError: this._onThumbnailError
                                 }),
                                 jsx('img', {
                                     className: 'large-thumbnail',
                                     loading: 'lazy',
-                                    src: `${thumbnailPath}${category}_${example}_large.webp`
+                                    src: `${thumbnailPath}${category}_${example}_large.webp`,
+                                    onError: this._onThumbnailError
                                 }),
                                 jsx(
                                     'div',

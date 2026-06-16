@@ -55,6 +55,51 @@ const TEXT_LOADERS = {
     '.txt': 'text'
 };
 
+const urlExternalPlugin = () => ({
+    name: 'url-external',
+    setup(build) {
+        build.onResolve({ filter: /^(?:https?:)?\/\// }, (args) => {
+            return {
+                path: args.path,
+                external: true
+            };
+        });
+    }
+});
+
+const timed = async (from, to, fn) => {
+    const start = performance.now();
+    try {
+        const result = await fn();
+        failedLog(false);
+        createdLog(`${from} -> ${to}`, performance.now() - start);
+        return result;
+    } catch (e) {
+        failedLog(true);
+        throw e;
+    }
+};
+
+const writeSources = async (targets) => {
+    for (const { src, dest } of targets) {
+        const input = await fs.promises.readFile(src, 'utf8');
+        const output = transformSource(input);
+        await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+        await fs.promises.writeFile(dest, output);
+    }
+};
+
+const exampleOptions = (entryPoints, external) => ({
+    entryPoints,
+    outdir: IFRAME_DIR,
+    bundle: true,
+    format: 'esm',
+    splitting: true,
+    target: EXAMPLE_TARGET,
+    define: {
+        'process.env.NODE_ENV': JSON.stringify(NODE_ENV)
+    },
+    loader: TEXT_LOADERS,
     external,
     plugins: [
         urlExternalPlugin()

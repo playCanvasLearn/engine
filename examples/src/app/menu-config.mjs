@@ -79,6 +79,35 @@ const normalizePath = (value) => {
     return withSlash.length > 1 ? withSlash.replace(/\/+$/, '') : withSlash;
 };
 
+/** @param {string} key */
+const readStorageValue = (key) => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return null;
+    }
+    return window.localStorage.getItem(key);
+};
+
+/** @param {string} key @param {string} value */
+const writeStorageValue = (key, value) => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+    }
+    window.localStorage.setItem(key, value);
+};
+
+/** @param {string} key */
+const readJsonStorage = (key) => {
+    const value = readStorageValue(key);
+    if (!value) {
+        return null;
+    }
+    try {
+        return JSON.parse(value);
+    } catch {
+        return null;
+    }
+};
+
 const buildDefaultCategories = () => {
     /** @type {Record<string, { label: string, hidden: boolean, examples: Record<string, { label: string, hidden: boolean }> }>} */
     const categories = {};
@@ -155,6 +184,11 @@ export const menuOverrides = {
                     "label": "MES机器人工作场景",
                     "hidden": false,
                     "order": 100
+                },
+                "mes-board-group-static": {
+                    "label": "MES车间总览",
+                    "hidden": false,
+                    "order": 110
                 }
             }
         },
@@ -1160,7 +1194,8 @@ export const menuOverrides = {
 export const menuConfig = {
     sidebar: {
         title: '鼎宏元景-数字工厂、虚拟现实',
-        filterPlaceholder: '筛选...'
+        filterPlaceholder: '筛选...',
+        categoryCollapsedStorageKey: 'sideBarCategoryCollapsed'
     },
     categories: mergeCategoryTrees(buildDefaultCategories(), mergeCategoryTrees(loadCategoryOverrides(), menuOverrides.categories)),
     hiddenPaths: {
@@ -1236,4 +1271,25 @@ export const isSidebarHiddenForPath = (pathname) => {
 export const isMenuHiddenForPath = (pathname) => {
     const path = normalizePath(pathname);
     return (menuConfig.hiddenPaths.menu ?? []).map(normalizePath).includes(path);
+};
+
+export const readSidebarCategoryCollapsedCache = () => {
+    const value = readJsonStorage(menuConfig.sidebar.categoryCollapsedStorageKey);
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+};
+
+/** @param {string} categoryKebab */
+export const isSidebarCategoryCollapsed = (categoryKebab) => {
+    return readSidebarCategoryCollapsedCache()[categoryKebab] === true;
+};
+
+/** @param {string} categoryKebab @param {boolean} collapsed */
+export const writeSidebarCategoryCollapsedCache = (categoryKebab, collapsed) => {
+    const cached = readSidebarCategoryCollapsedCache();
+    if (collapsed) {
+        cached[categoryKebab] = true;
+    } else {
+        delete cached[categoryKebab];
+    }
+    writeStorageValue(menuConfig.sidebar.categoryCollapsedStorageKey, JSON.stringify(cached));
 };
