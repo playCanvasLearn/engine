@@ -191,7 +191,7 @@ export const menuOverrides = {
                     "order": 110
                 },
                 "manual-3d": {
-                    "label": "3D手册",
+                    "label": "数控螺纹磨床3D手册",
                     "hidden": false,
                     "order": 120
                 }

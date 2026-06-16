@@ -36,6 +36,7 @@ const assets = {
         { url: './assets/cubemaps/helipad-env-atlas.png' },
         { type: pc.TEXTURETYPE_RGBP, mipmaps: false }
     ),
+    // statue: new pc.Asset('statue', 'container', { url: './assets/scene/models/machineAll.glb' })
     statue: new pc.Asset('statue', 'container', { url: './assets/scene/models/main_draco.glb' })
 };
 
