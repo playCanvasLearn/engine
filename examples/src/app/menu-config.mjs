@@ -185,7 +185,7 @@ export const menuOverrides = {
                     "hidden": false,
                     "order": 100
                 },
-                "mes-board-group-static": {
+                "mes-board-group": {
                     "label": "MES车间总览",
                     "hidden": false,
                     "order": 110

@@ -2,7 +2,7 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\scene",
         categoryKebab: "scene",
-        exampleNameKebab: "mes-board-group-static",
+        exampleNameKebab: "mes-board-group",
         hidden: false,
         externalUrl: "https://mes.365me.me/boardGroupStatic"
     },
