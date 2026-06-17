@@ -1,14 +1,8 @@
 // @config
 //
-// GSplat editor with AABB selection, deletion, and cloning using GSplatProcessor.
+// 高斯场景编辑器，支持 AABB 选择、删除和克隆。
 //
-// `Select button` Show selection box · `Gizmo` Move selection box · `LMB` Orbit
-//
-// @credit
-// title: SA3D_R&D_XP47
-// author: Stephane Agullo
-// source: https://superspl.at/view?id=cdcec084
-// license: CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/)
+// `选择按钮` 显示选择框 · `箭头` 移动选择框 · `鼠标左键` 环绕视角
 
 import * as pc from 'playcanvas';
 
@@ -80,13 +74,16 @@ app.on('destroy', () => {
 });
 
 // Initialize control data
-data.set('boxSize', 0.67);
+data.set('boxSize', 2);
 
 const assets = {
     orbit: new pc.Asset('script', 'script', { url: './scripts/camera/orbit-camera.js' }),
     splat: new pc.Asset('sunnyvale-splat', 'gsplat', { url: './assets/splats/sunnyvale.sog' }),
     collision: new pc.Asset('sunnyvale-collision', 'container', { url: './assets/splats/sunnyvale.glb' }),
-    biker: new pc.Asset('biker', 'gsplat', { url: './assets/splats/biker.compressed.ply' })
+    biker: new pc.Asset('biker', 'gsplat', { url: './assets/splats/biker.compressed.ply' }),
+    plant: new pc.Asset('oat-plant', 'gsplat', { url: './assets/splats/oat_splat.ply' }),
+    bicycle: new pc.Asset('bicycle', 'gsplat', { url: './assets/splats/bicycle.sog' }),
+    // device: new pc.Asset('rubin-telescope', 'gsplat', { url: './assets/splats/rubin.compressed.ply' })
 };
 
 const assetListLoader = new pc.AssetListLoader(Object.values(assets), app.assets);
@@ -512,10 +509,14 @@ assetListLoader.load(() => {
     });
     sceneRoot.addChild(collisionRoot);
 
-    createEditableSplat('sunnyvale-gsplat', assets.splat, [0, 0, 0], [0, 0, 0], [1, 1, 1], sceneRoot);
+    createEditableSplat('场景本体', assets.splat, [0, 0, 0], [0, 0, 0], [1, 1, 1], sceneRoot);
 
-    createEditableSplat('biker1', assets.biker, [-1.9, -0.55, 0.6], [180, -90, 0], [0.3, 0.3, 0.3]);
-    createEditableSplat('biker2', assets.biker, [-3, -0.5, -0.5], [180, 180, 0], [0.3, 0.3, 0.3]);
+    createEditableSplat('人物1', assets.biker, [-1.9, 0, 0.6], [180, -90, 0], [0.3, 0.3, 0.3]);
+    createEditableSplat('人物2', assets.biker, [-3, 0, -0.5], [180, 180, 0], [0.3, 0.3, 0.3]);
+    createEditableSplat('植物1', assets.plant, [-0.8, 1, 1.4], [180, 0, 0], [0.25, 0.25, 0.25]);
+    createEditableSplat('自行车1', assets.bicycle, [0.9, 0.2, 1.1], [180, -45, 0], [0.35, 0.35, 0.35]);
+    createEditableSplat('自行车2', assets.bicycle, [1.6, 0.2, 0.4], [180, 35, 0], [0.35, 0.35, 0.35]);
+    //createEditableSplat('设备1', assets.device, [1.8, 0.1, 0.3], [180, -35, 0], [0.18, 0.18, 0.18]);
 
     // Camera setup
     const cameraPos = new pc.Vec3(0, 2, 6);

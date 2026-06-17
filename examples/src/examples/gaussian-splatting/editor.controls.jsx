@@ -19,25 +19,25 @@ import {
 export function Controls({ observer }) {
     return (
         <>
-            <Panel headerText='Renderer'>
-                <LabelGroup text='Renderer'>
+           {/*  <Panel headerText='渲染器'>
+                <LabelGroup text='渲染器'>
                     <SelectInput
                         type='number'
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'renderer' }}
                         value={observer.get('renderer') ?? 0}
                         options={[
-                            { v: 0, t: 'Auto' },
-                            { v: 1, t: 'Raster (CPU Sort)' },
-                            { v: 2, t: 'Raster (GPU Sort)' },
-                            { v: 3, t: 'Compute' }
+                            { v: 0, t: '自动' },
+                            { v: 1, t: '光栅（CPU 排序）' },
+                            { v: 2, t: '光栅（GPU 排序）' },
+                            { v: 3, t: '计算' }
                         ]}
                     />
                 </LabelGroup>
-            </Panel>
-            <Panel headerText='Editor Settings'>
-                <Button text='Select' onClick={() => observer.emit('select')} />
-                <LabelGroup text='Box Size'>
+            </Panel> */}
+            <Panel headerText='编辑设置'>
+                <Button text='选择场景复制' onClick={() => observer.emit('select')} />
+                <LabelGroup text='选择框大小'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'boxSize' }}
@@ -46,8 +46,8 @@ export function Controls({ observer }) {
                         precision={2}
                     />
                 </LabelGroup>
-                <Button text='Delete Selected' onClick={() => observer.emit('deleteSelected')} />
-                <Button text='Clone Selected' onClick={() => observer.emit('cloneSelected')} />
+                <Button text='删除所选' onClick={() => observer.emit('deleteSelected')} />
+                <Button text='克隆所选' onClick={() => observer.emit('cloneSelected')} />
             </Panel>
         </>
     );
