@@ -1,4 +1,4 @@
-import { BindingTwoWay, ColorPicker, LabelGroup, Panel, SliderInput } from '@playcanvas/pcui/react';
+import { BindingTwoWay, BooleanInput, ColorPicker, LabelGroup, Panel, SliderInput } from '@playcanvas/pcui/react';
 
 /**
  * @import { Observer } from '@playcanvas/observer'
@@ -12,8 +12,22 @@ import { BindingTwoWay, ColorPicker, LabelGroup, Panel, SliderInput } from '@pla
 export function Controls({ observer }) {
     return (
         <>
-            <Panel headerText='Annotations'>
-                <LabelGroup text='Hotspot Size'>
+            <Panel headerText='标注'>
+                <LabelGroup text='显示文字介绍'>
+                    <BooleanInput
+                        type='toggle'
+                        binding={new BindingTwoWay()}
+                        link={{ observer, path: 'data.showIntro' }}
+                    />
+                </LabelGroup>
+                <LabelGroup text='显示尺寸线与标签'>
+                    <BooleanInput
+                        type='toggle'
+                        binding={new BindingTwoWay()}
+                        link={{ observer, path: 'data.showLines' }}
+                    />
+                </LabelGroup>
+                <LabelGroup text='标注点大小'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'data.hotspotSize' }}
@@ -21,19 +35,19 @@ export function Controls({ observer }) {
                         max={50}
                     />
                 </LabelGroup>
-                <LabelGroup text='Hotspot Color'>
+                <LabelGroup text='标注点颜色'>
                     <ColorPicker
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'data.hotspotColor' }}
                     />
                 </LabelGroup>
-                <LabelGroup text='Hover Color'>
+                <LabelGroup text='悬停颜色'>
                     <ColorPicker
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'data.hoverColor' }}
                     />
                 </LabelGroup>
-                <LabelGroup text='Opacity'>
+                <LabelGroup text='不透明度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'data.opacity' }}
@@ -42,7 +56,7 @@ export function Controls({ observer }) {
                         precision={2}
                     />
                 </LabelGroup>
-                <LabelGroup text='Behind Opacity'>
+                <LabelGroup text='背面不透明度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'data.behindOpacity' }}
@@ -55,4 +69,3 @@ export function Controls({ observer }) {
         </>
     );
 }
-

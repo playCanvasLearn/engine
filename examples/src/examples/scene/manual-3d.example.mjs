@@ -87,7 +87,7 @@ if (!navigator.webdriver) {
         const hdri = new pc.Asset(
             'hdri',
             'texture',
-            { url: 'https://image.365me.me/static/hdr/crossfit_gym_1k.hdr?t=12345' },
+            { url: './assets/hdri/crossfit_gym_1k.hdr' },
             { mipmaps: false }
         );
         app.assets.add(hdri);
