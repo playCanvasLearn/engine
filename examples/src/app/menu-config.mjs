@@ -292,128 +292,159 @@ export const menuOverrides = {
             }
         },
         "gaussian-splatting": {
-            "label": "高斯泼溅",
-            "hidden": true,
+            "label": "高斯场景",
+            "hidden": false,
             "examples": {
                 "annotations": {
                     "label": "ANNOTATIONS",
-                    "hidden": false
+                    "hidden": true
                 },
                 "benchmark": {
                     "label": "BENCHMARK",
-                    "hidden": false
+                    "hidden": true
+                },
+                "billions": {
+                    "label": "十亿级",
+                    "hidden": true
+                },
+                "clipping": {
+                    "label": "裁剪",
+                    "hidden": true
                 },
                 "crop": {
                     "label": "CROP",
-                    "hidden": false
+                    "hidden": true
+                },
+                "depth-of-field": {
+                    "label": "景深",
+                    "hidden": true
+                },
+                "downtown": {
+                    "label": "市中心",
+                    "hidden": true
                 },
                 "editor": {
-                    "label": "编辑器",
-                    "hidden": false
+                    "label": "高斯实景布置",
+                    "hidden": false,
+                    "order": 110
                 },
                 "first-person": {
-                    "label": "第一人称",
-                    "hidden": false
+                    "label": "高斯实景第一人称",
+                    "hidden": false,
+                    "order": 100
                 },
                 "flipbook": {
                     "label": "FLIPBOOK",
-                    "hidden": false
+                    "hidden": true
                 },
                 "global-sorting": {
                     "label": "GLOBAL排序",
-                    "hidden": false
+                    "hidden": true
                 },
                 "lod-instances": {
                     "label": "LODINSTANCES",
-                    "hidden": false
+                    "hidden": true
                 },
                 "lod-streaming": {
                     "label": "LOD流式",
-                    "hidden": false
+                    "hidden": true
                 },
                 "lod-streaming-sh": {
                     "label": "LOD流式SH",
-                    "hidden": false
+                    "hidden": true
                 },
                 "lut-grading": {
                     "label": "LUTGRADING",
-                    "hidden": false
+                    "hidden": true
                 },
                 "multi-splat": {
                     "label": "多SPLAT",
-                    "hidden": false
+                    "hidden": true
                 },
                 "multi-view": {
                     "label": "多视图",
-                    "hidden": false
+                    "hidden": true
                 },
                 "paint": {
                     "label": "绘制",
-                    "hidden": false
+                    "hidden": true
                 },
                 "picking": {
                     "label": "拾取",
-                    "hidden": false
+                    "hidden": true
                 },
                 "procedural-instanced": {
                     "label": "程序化INSTANCED",
-                    "hidden": false
+                    "hidden": true
                 },
                 "procedural-mesh": {
                     "label": "程序化网格",
-                    "hidden": false
+                    "hidden": true
                 },
                 "procedural-shapes": {
                     "label": "程序化形状",
-                    "hidden": false
+                    "hidden": true
+                },
+                "relighting": {
+                    "label": "重新打光",
+                    "hidden": true
                 },
                 "reveal": {
                     "label": "REVEAL",
-                    "hidden": false
+                    "hidden": true
+                },
+                "shader-dissolve": {
+                    "label": "着色器溶解",
+                    "hidden": true
                 },
                 "shader-effects": {
                     "label": "着色器效果",
-                    "hidden": false
+                    "hidden": true
+                },
+                "shader-rings": {
+                    "label": "着色器圆环",
+                    "hidden": true
                 },
                 "shadow-soft": {
                     "label": "阴影柔和",
-                    "hidden": false
+                    "hidden": true
                 },
                 "shadows": {
                     "label": "阴影",
-                    "hidden": false
+                    "hidden": true
                 },
                 "simple": {
                     "label": "SIMPLE",
-                    "hidden": false
+                    "hidden": true
                 },
                 "spherical-harmonics": {
                     "label": "SPHERICALHARMONICS",
-                    "hidden": false
+                    "hidden": true
                 },
                 "splat-portal": {
                     "label": "SPLAT传送门",
-                    "hidden": false
+                    "hidden": true
                 },
                 "third-person": {
-                    "label": "第三人称",
-                    "hidden": false
+                    "label": "高斯实景第三人称",
+                    "hidden": false,
+                    "order": 105
                 },
                 "viewer": {
                     "label": "查看器",
-                    "hidden": false
+                    "hidden": true
                 },
                 "weather": {
                     "label": "WEATHER",
-                    "hidden": false
+                    "hidden": true
                 },
                 "world": {
                     "label": "世界",
-                    "hidden": false
+                    "hidden": true
                 },
                 "xr-views": {
                     "label": "XRVIEWS",
-                    "hidden": false
+                    "hidden": true
                 }
             }
         },
@@ -889,8 +920,16 @@ export const menuOverrides = {
                     "label": "下落形状",
                     "hidden": false
                 },
+                "joints": {
+                    "label": "关节",
+                    "hidden": false
+                },
                 "offset-collision": {
                     "label": "偏移碰撞",
+                    "hidden": false
+                },
+                "ragdoll": {
+                    "label": "布娃娃",
                     "hidden": false
                 },
                 "raycast": {

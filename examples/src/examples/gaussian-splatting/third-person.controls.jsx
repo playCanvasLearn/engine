@@ -19,22 +19,22 @@ import {
 export function Controls({ observer }) {
     return (
         <>
-            <Panel headerText='Settings'>
-                <LabelGroup text='Renderer'>
+{/*             <Panel headerText='设置'>
+                <LabelGroup text='渲染器'>
                     <SelectInput
                         type='number'
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'renderer' }}
                         value={observer.get('renderer') ?? 0}
                         options={[
-                            { v: 0, t: 'Auto' },
-                            { v: 1, t: 'Raster (CPU Sort)' },
-                            { v: 2, t: 'Raster (GPU Sort)' },
-                            { v: 3, t: 'Compute' }
+                            { v: 0, t: '自动' },
+                            { v: 1, t: '光栅（CPU 排序）' },
+                            { v: 2, t: '光栅（GPU 排序）' },
+                            { v: 3, t: '计算' }
                         ]}
                     />
                 </LabelGroup>
-                <LabelGroup text='Splat Budget (M)'>
+                <LabelGroup text='Splat 预算（百万）'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'splatBudget' }}
@@ -45,8 +45,8 @@ export function Controls({ observer }) {
                     />
                 </LabelGroup>
             </Panel>
-            <Panel headerText='Camera'>
-                <LabelGroup text='Distance'>
+            <Panel headerText='相机'>
+                <LabelGroup text='距离'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'cameraDistance' }}
@@ -56,7 +56,7 @@ export function Controls({ observer }) {
                         step={0.1}
                     />
                 </LabelGroup>
-                <LabelGroup text='Height'>
+                <LabelGroup text='高度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'cameraHeight' }}
@@ -66,7 +66,7 @@ export function Controls({ observer }) {
                         step={0.05}
                     />
                 </LabelGroup>
-                <LabelGroup text='Smoothing'>
+                <LabelGroup text='平滑'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'cameraSmoothing' }}
@@ -76,7 +76,7 @@ export function Controls({ observer }) {
                         step={0.0001}
                     />
                 </LabelGroup>
-                <LabelGroup text='Look Sens'>
+                <LabelGroup text='视角灵敏度'>
                     <SliderInput
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'lookSens' }}
@@ -87,22 +87,22 @@ export function Controls({ observer }) {
                     />
                 </LabelGroup>
             </Panel>
-            <Panel headerText='Stats'>
-                <LabelGroup text='Resolution'>
+            <Panel headerText='统计'>
+                <LabelGroup text='分辨率'>
                     <Label
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'data.stats.resolution' }}
                         value={observer.get('data.stats.resolution')}
                     />
                 </LabelGroup>
-                <LabelGroup text='GSplat Count'>
+                <LabelGroup text='GSplat 数量'>
                     <Label
                         binding={new BindingTwoWay()}
                         link={{ observer, path: 'data.stats.gsplats' }}
                         value={observer.get('data.stats.gsplats')}
                     />
                 </LabelGroup>
-            </Panel>
+            </Panel> */}
         </>
     );
 }

@@ -1,12 +1,6 @@
 // @config
 //
-// `WASD` Move · `Space` Jump · `Mouse` Look
-//
-// @credit
-// title: Sunnyvale Heritage Park Museum
-// author: zeitgeistarchivescans
-// source: https://superspl.at/scene/d5d397aa
-// license: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+// `WASD` 移动 · `空格` 跳跃 · `鼠标` 视角
 
 import * as pc from 'playcanvas';
 import { FirstPersonController } from 'playcanvas/scripts/esm/first-person-controller.mjs';
@@ -85,8 +79,8 @@ app.on('destroy', () => {
 });
 
 const assets = {
-    splat: new pc.Asset('sunnyvale-splat', 'gsplat', { url: 'https://code.playcanvas.com/examples_data/example_sunnyvale/sunnyvale.sog' }),
-    collision: new pc.Asset('sunnyvale-collision', 'container', { url: 'https://code.playcanvas.com/examples_data/example_sunnyvale/sunnyvale.glb' })
+    splat: new pc.Asset('sunnyvale-splat', 'gsplat', { url: './assets/splats/sunnyvale.sog' }),
+    collision: new pc.Asset('sunnyvale-collision', 'container', { url: './assets/splats/sunnyvale.glb' })
 };
 
 await new Promise((resolve) => {

@@ -22,6 +22,27 @@ import { workBufferModifier } from './workbuffer-modifier.mjs';
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('application-canvas'));
 window.focus();
 
+pc.WasmModule.setConfig('Ammo', {
+    glueUrl: './assets/wasm/ammo/ammo.wasm.js',
+    wasmUrl: './assets/wasm/ammo/ammo.wasm.wasm',
+    fallbackUrl: './assets/wasm/ammo/ammo.js'
+});
+
+pc.WasmModule.setConfig('DracoDecoderModule', {
+    glueUrl: './assets/wasm/draco/draco.wasm.js',
+    wasmUrl: './assets/wasm/draco/draco.wasm.wasm',
+    fallbackUrl: './assets/wasm/draco/draco.js'
+});
+
+await Promise.all([
+    new Promise((resolve) => {
+        pc.WasmModule.getInstance('Ammo', () => resolve(true));
+    }),
+    new Promise((resolve) => {
+        pc.WasmModule.getInstance('DracoDecoderModule', () => resolve(true));
+    })
+]);
+
 const gfxOptions = {
     deviceTypes: [deviceType],
     antialias: false
@@ -40,6 +61,8 @@ createOptions.componentSystems = [
     pc.CameraComponentSystem,
     pc.LightComponentSystem,
     pc.ScriptComponentSystem,
+    pc.CollisionComponentSystem,
+    pc.RigidBodyComponentSystem,
     pc.GSplatComponentSystem
 ];
 createOptions.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler, pc.ScriptHandler, pc.GSplatHandler];
@@ -61,8 +84,9 @@ data.set('boxSize', 0.67);
 
 const assets = {
     orbit: new pc.Asset('script', 'script', { url: './scripts/camera/orbit-camera.js' }),
-    biker: new pc.Asset('biker', 'gsplat', { url: './assets/splats/biker.compressed.ply' }),
-    apartment: new pc.Asset('apartment', 'gsplat', { url: './assets/splats/apartment.sog' })
+    splat: new pc.Asset('sunnyvale-splat', 'gsplat', { url: './assets/splats/sunnyvale.sog' }),
+    collision: new pc.Asset('sunnyvale-collision', 'container', { url: './assets/splats/sunnyvale.glb' }),
+    biker: new pc.Asset('biker', 'gsplat', { url: './assets/splats/biker.compressed.ply' })
 };
 
 const assetListLoader = new pc.AssetListLoader(Object.values(assets), app.assets);
@@ -77,6 +101,8 @@ assetListLoader.load(() => {
         }
     });
     data.set('renderer', pc.GSPLAT_RENDERER_AUTO);
+
+    app.systems.rigidbody?.gravity.set(0, -10, 0);
 
     // Store all editable gsplat entities
     const editables = [];
@@ -229,13 +255,13 @@ assetListLoader.load(() => {
     };
 
     // Creates an editable gsplat entity with splatVisible and splatSelection streams
-    const createEditableSplat = (name, asset, position, rotation, scale) => {
+    const createEditableSplat = (name, asset, position, rotation, scale, parent = app.root) => {
         const entity = new pc.Entity(name);
         const gsplatComponent = entity.addComponent('gsplat', { asset });
         entity.setLocalPosition(...position);
         entity.setLocalEulerAngles(...rotation);
         entity.setLocalScale(...scale);
-        app.root.addChild(entity);
+        parent.addChild(entity);
 
         const resource = /** @type {pc.GSplatResource} */ (asset.resource);
 
@@ -466,14 +492,34 @@ assetListLoader.load(() => {
         return { totalCount, centers, aabb, mappings };
     };
 
-    // Create initial splats
+    const sceneRoot = new pc.Entity('sunnyvale');
+    sceneRoot.setLocalEulerAngles(0, 0, 180);
+    app.root.addChild(sceneRoot);
+
+    const collisionRoot = assets.collision.resource.instantiateRenderEntity();
+    collisionRoot.findComponents('render').forEach((/** @type {pc.RenderComponent} */ render) => {
+        const entity = render.entity;
+        entity.addComponent('rigidbody', {
+            type: 'static',
+            friction: 0.5,
+            restitution: 0
+        });
+        entity.addComponent('collision', {
+            type: 'mesh',
+            renderAsset: render.asset
+        });
+        render.enabled = false;
+    });
+    sceneRoot.addChild(collisionRoot);
+
+    createEditableSplat('sunnyvale-gsplat', assets.splat, [0, 0, 0], [0, 0, 0], [1, 1, 1], sceneRoot);
+
     createEditableSplat('biker1', assets.biker, [-1.9, -0.55, 0.6], [180, -90, 0], [0.3, 0.3, 0.3]);
     createEditableSplat('biker2', assets.biker, [-3, -0.5, -0.5], [180, 180, 0], [0.3, 0.3, 0.3]);
-    createEditableSplat('apartment', assets.apartment, [0, -0.5, -3], [180, 0, 0], [0.5, 0.5, 0.5]);
 
     // Camera setup
-    const cameraPos = new pc.Vec3(-0.98, 0.28, -2.31);
-    const focusPos = new pc.Vec3(-1.10, 0.13, -1.56);
+    const cameraPos = new pc.Vec3(0, 2, 6);
+    const focusPos = new pc.Vec3(0, 1.2, 0);
 
     const camera = new pc.Entity('Camera');
     camera.addComponent('camera', {

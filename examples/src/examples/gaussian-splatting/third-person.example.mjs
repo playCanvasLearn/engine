@@ -1,12 +1,6 @@
 // @config
 //
-// `WASD` Move · `Shift` Sprint · `Space` Jump · `Q` Dance · `Mouse` Orbit camera · `Wheel` Zoom
-//
-// @credit
-// title: Sunnyvale Heritage Park Museum
-// author: zeitgeistarchivescans
-// source: https://superspl.at/scene/d5d397aa
-// license: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+// `WASD` 移动 · `Shift` 冲刺 · `空格` 跳跃 · `Q` 舞蹈 · `鼠标` 环绕镜头 · `滚轮` 缩放
 
 import * as pc from 'playcanvas';
 import { ShadowCatcher } from 'playcanvas/scripts/esm/shadow-catcher.mjs';
@@ -88,8 +82,8 @@ app.on('destroy', () => {
 });
 
 const assets = {
-    splat: new pc.Asset('sunnyvale-splat', 'gsplat', { url: 'https://code.playcanvas.com/examples_data/example_sunnyvale/sunnyvale.sog' }),
-    collision: new pc.Asset('sunnyvale-collision', 'container', { url: 'https://code.playcanvas.com/examples_data/example_sunnyvale/sunnyvale.glb' }),
+    splat: new pc.Asset('sunnyvale-splat', 'gsplat', { url: './assets/splats/sunnyvale.sog' }),
+    collision: new pc.Asset('sunnyvale-collision', 'container', { url: './assets/splats/sunnyvale.glb' }),
     character: new pc.Asset('character', 'container', { url: './assets/models/bitmoji.glb' }),
     idleAnim: new pc.Asset('idleAnim', 'container', { url: './assets/animations/bitmoji/idle.glb' }),
     walkAnim: new pc.Asset('walkAnim', 'container', { url: './assets/animations/bitmoji/walk.glb' }),
