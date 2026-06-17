@@ -95,6 +95,7 @@ const exampleOptions = (entryPoints, external) => ({
     bundle: true,
     format: 'esm',
     splitting: true,
+    outExtension: { '.js': '.mjs' },
     target: EXAMPLE_TARGET,
     define: {
         'process.env.NODE_ENV': JSON.stringify(NODE_ENV)

@@ -8,6 +8,12 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\misc",
         categoryKebab: "misc",
+        exampleNameKebab: "annotations",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\misc",
+        categoryKebab: "misc",
         exampleNameKebab: "editor",
         hidden: false
     },

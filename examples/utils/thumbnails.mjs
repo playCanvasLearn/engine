@@ -38,6 +38,41 @@ const sleep = (ms = 0) => {
     });
 };
 
+/**
+ * @param {Buffer} imageData - Image buffer.
+ * @returns {Promise<boolean>} true if the screenshot looks blank (mostly a flat color).
+ */
+const isLikelyBlankScreenshot = async (imageData) => {
+    const { channels } = await sharp(imageData).stats();
+    const mean = (channels[0].mean + channels[1].mean + channels[2].mean) / 3;
+    const stdev = (channels[0].stdev + channels[1].stdev + channels[2].stdev) / 3;
+    return mean < 8 && stdev < 6;
+};
+
+/**
+ * Wait for a few animation frames to ensure the first real render has happened.
+ *
+ * @param {import('puppeteer').Page} page - Puppeteer page.
+ * @param {number} count - Number of rAF ticks to wait for.
+ * @returns {Promise<void>} completion promise.
+ */
+const waitForAnimationFrames = async (page, count = 3) => {
+    await page.evaluate(async (c) => {
+        await new Promise((resolve) => {
+            let n = 0;
+            const tick = () => {
+                n++;
+                if (n >= c) {
+                    resolve(true);
+                    return;
+                }
+                requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        });
+    }, count);
+};
+
 const waitForServer = async (url, timeoutMs = 30000) => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -176,7 +211,8 @@ const takeThumbnails = async (pool, categoryKebab, exampleNameKebab, externalUrl
         );
     }
 
-    const screenshotPath = `thumbnails/${categoryKebab}_${exampleNameKebab}.webp`;
+    const outputLarge = `thumbnails/${categoryKebab}_${exampleNameKebab}_large.webp`;
+    const outputSmall = `thumbnails/${categoryKebab}_${exampleNameKebab}_small.webp`;
 
     try {
         if (!externalUrl) {
@@ -210,34 +246,29 @@ const takeThumbnails = async (pool, categoryKebab, exampleNameKebab, externalUrl
                 throw new Error(`Example failed to load: ${categoryKebab}/${exampleNameKebab}`);
             }
 
-            await Promise.race([
-                page.waitForFunction(`(() => {
-                    const app = window?.pc?.AppBase?.getApplication?.('application-canvas');
-                    return !!app && app.frame > 1;
-                })()`, { timeout: TIMEOUT }),
-                sleep(2000)
-            ]);
+            await page.waitForFunction(`(() => {
+                const app = window?.pc?.AppBase?.getApplication?.('application-canvas');
+                return !app || app.frame > 10;
+            })()`, { timeout: TIMEOUT });
+            await waitForAnimationFrames(page, 3);
+            await sleep(250);
         }
 
-        await page.screenshot({ path: screenshotPath, type: 'webp' });
+        let screenshotData = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            screenshotData = /** @type {Buffer} */ (await page.screenshot({ type: 'webp' }));
+            if (!(await isLikelyBlankScreenshot(screenshotData))) {
+                break;
+            }
+            await sleep(750);
+            await waitForAnimationFrames(page, 2);
+        }
 
-        const imgData = fs.readFileSync(screenshotPath);
-
-        await sharp(imgData)
-        .resize(320, 240)
-        .toFile(`thumbnails/${categoryKebab}_${exampleNameKebab}_large.webp`);
-
-        await sharp(imgData)
-        .resize(64, 48)
-        .toFile(`thumbnails/${categoryKebab}_${exampleNameKebab}_small.webp`);
-
-        fs.unlinkSync(screenshotPath);
+        await sharp(screenshotData).resize(320, 240).toFile(outputLarge);
+        await sharp(screenshotData).resize(64, 48).toFile(outputSmall);
 
         console.log(`screenshot taken for: ${categoryKebab}/${exampleNameKebab}`);
     } finally {
-        if (fs.existsSync(screenshotPath)) {
-            fs.unlinkSync(screenshotPath);
-        }
         await pool.closePage(poolItem, page).catch(() => {});
     }
 };

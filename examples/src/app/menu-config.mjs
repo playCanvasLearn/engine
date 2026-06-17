@@ -868,7 +868,7 @@ export const menuOverrides = {
         },
         "misc": {
             "label": "杂项",
-            "hidden": false,
+            "hidden": true,
             "examples": {
                 "animated-sprite": {
                     "label": "ANIMATEDSPRITE",
