@@ -121,7 +121,7 @@ assetListLoader.load(() => {
     app.root.addChild(light);
 
     const modelRoot = new pc.Entity('model');
-    modelRoot.setLocalEulerAngles(0, -70, 0);
+    modelRoot.setLocalEulerAngles(0, -45, 0);
     app.root.addChild(modelRoot);
 
     const modelEntity = assets.model.resource.instantiateRenderEntity({
@@ -287,12 +287,13 @@ assetListLoader.load(() => {
         const textScript = textEntity.script.create(GsplatText);
         textScript.text = text;
         textScript.fontSize = 48;
-        textScript.fillStyle = '#00e5ff';
+        textScript.fillStyle = '#3a8dff';
         textScript.strokeStyle = 'rgba(0,0,0,0.9)';
         textScript.strokeWidth = 3;
         textScript.padding = 8;
         textEntity.setLocalPosition(x, y, z);
         textEntity.setLocalEulerAngles(rotX, rotY, rotZ);
+
         textEntity.setLocalScale(scale, scale, scale);
         modelRoot.addChild(textEntity);
         textEntities.push(textEntity);
@@ -309,7 +310,7 @@ assetListLoader.load(() => {
         linesEntity = new pc.Entity('Lines');
         linesEntity.addComponent('script');
         const lines = linesEntity.script.create(GsplatLines);
-        modelRoot.addChild(linesEntity);
+        app.root.addChild(linesEntity);
 
         const min = modelAabb.getMin().clone();
         const max = modelAabb.getMax().clone();
@@ -320,30 +321,60 @@ assetListLoader.load(() => {
         const offset = maxDim * 0.12;
         const textScale = Math.max(0.15, maxDim * 0.03);
 
-        lines.addAABB(min, max, yellow, thickness * 0.6);
+        const modelToWorld = modelRoot.getWorldTransform();
+        const worldA = new pc.Vec3();
+        const worldB = new pc.Vec3();
+        const lineLocal = (ax, ay, az, bx, by, bz, color, width) => {
+            modelToWorld.transformPoint(worldA.set(ax, ay, az), worldA);
+            modelToWorld.transformPoint(worldB.set(bx, by, bz), worldB);
+            lines.addLineSimple(worldA, worldB, color, width);
+        };
 
         const midX = (min.x + max.x) * 0.5;
         const midY = (min.y + max.y) * 0.5;
+        const midZ = (min.z + max.z) * 0.5;
+
+        const boxWidth = thickness * 0.6;
+        lineLocal(min.x, min.y, min.z, max.x, min.y, min.z, yellow, boxWidth);
+        lineLocal(max.x, min.y, min.z, max.x, min.y, max.z, yellow, boxWidth);
+        lineLocal(max.x, min.y, max.z, min.x, min.y, max.z, yellow, boxWidth);
+        lineLocal(min.x, min.y, max.z, min.x, min.y, min.z, yellow, boxWidth);
+
+        lineLocal(min.x, max.y, min.z, max.x, max.y, min.z, yellow, boxWidth);
+        lineLocal(max.x, max.y, min.z, max.x, max.y, max.z, yellow, boxWidth);
+        lineLocal(max.x, max.y, max.z, min.x, max.y, max.z, yellow, boxWidth);
+        lineLocal(min.x, max.y, max.z, min.x, max.y, min.z, yellow, boxWidth);
+
+        lineLocal(min.x, min.y, min.z, min.x, max.y, min.z, yellow, boxWidth);
+        lineLocal(max.x, min.y, min.z, max.x, max.y, min.z, yellow, boxWidth);
+        lineLocal(max.x, min.y, max.z, max.x, max.y, max.z, yellow, boxWidth);
+        lineLocal(min.x, min.y, max.z, min.x, max.y, max.z, yellow, boxWidth);
 
         const yDim = max.y + offset;
-        lines.addArrow(new pc.Vec3(min.x, yDim, min.z), new pc.Vec3(max.x, yDim, min.z), cyan, thickness * 0.8, arrowHeadSize);
-        lines.addArrow(new pc.Vec3(max.x, yDim, min.z), new pc.Vec3(min.x, yDim, min.z), cyan, thickness * 0.8, arrowHeadSize);
-        lines.addLineSimple(new pc.Vec3(min.x, max.y, min.z), new pc.Vec3(min.x, yDim, min.z), gray, thickness * 0.5);
-        lines.addLineSimple(new pc.Vec3(max.x, max.y, min.z), new pc.Vec3(max.x, yDim, min.z), gray, thickness * 0.5);
+        modelToWorld.transformPoint(worldA.set(min.x, yDim, midZ), worldA);
+        modelToWorld.transformPoint(worldB.set(max.x, yDim, midZ), worldB);
+        lines.addArrow(worldA, worldB, cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(worldB, worldA, cyan, thickness * 0.8, arrowHeadSize);
+        lineLocal(min.x, max.y, midZ, min.x, yDim, midZ, gray, thickness * 0.5);
+        lineLocal(max.x, max.y, midZ, max.x, yDim, midZ, gray, thickness * 0.5);
 
         const xDim = max.x + offset;
-        lines.addArrow(new pc.Vec3(xDim, min.y, min.z), new pc.Vec3(xDim, max.y, min.z), cyan, thickness * 0.8, arrowHeadSize);
-        lines.addArrow(new pc.Vec3(xDim, max.y, min.z), new pc.Vec3(xDim, min.y, min.z), cyan, thickness * 0.8, arrowHeadSize);
-        lines.addLineSimple(new pc.Vec3(max.x, min.y, min.z), new pc.Vec3(xDim, min.y, min.z), gray, thickness * 0.5);
-        lines.addLineSimple(new pc.Vec3(max.x, max.y, min.z), new pc.Vec3(xDim, max.y, min.z), gray, thickness * 0.5);
+        modelToWorld.transformPoint(worldA.set(xDim, min.y, midZ), worldA);
+        modelToWorld.transformPoint(worldB.set(xDim, max.y, midZ), worldB);
+        lines.addArrow(worldA, worldB, cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(worldB, worldA, cyan, thickness * 0.8, arrowHeadSize);
+        lineLocal(max.x, min.y, midZ, xDim, min.y, midZ, gray, thickness * 0.5);
+        lineLocal(max.x, max.y, midZ, xDim, max.y, midZ, gray, thickness * 0.5);
 
         const zDim = min.z - offset;
-        lines.addArrow(new pc.Vec3(midX, min.y, zDim), new pc.Vec3(midX, min.y, max.z), cyan, thickness * 0.8, arrowHeadSize);
-        lines.addArrow(new pc.Vec3(midX, min.y, max.z), new pc.Vec3(midX, min.y, zDim), cyan, thickness * 0.8, arrowHeadSize);
-        lines.addLineSimple(new pc.Vec3(midX, min.y, min.z), new pc.Vec3(midX, min.y, zDim), gray, thickness * 0.5);
+        modelToWorld.transformPoint(worldA.set(midX, min.y, zDim), worldA);
+        modelToWorld.transformPoint(worldB.set(midX, min.y, max.z), worldB);
+        lines.addArrow(worldA, worldB, cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(worldB, worldA, cyan, thickness * 0.8, arrowHeadSize);
+        lineLocal(midX, min.y, min.z, midX, min.y, zDim, gray, thickness * 0.5);
 
-        createTextLabel(size.x.toFixed(2), midX, yDim + offset * 0.15, min.z, -90, 180, 0, textScale);
-        createTextLabel(size.y.toFixed(2), xDim + offset * 0.15, midY, min.z, 0, -180, -90, textScale);
+        createTextLabel(size.x.toFixed(2), midX, yDim + offset * 0.15, midZ, -90, 180, 0, textScale);
+        createTextLabel(size.y.toFixed(2), xDim + offset * 0.15, midY, midZ, 0, -180, -90, textScale);
         createTextLabel(size.z.toFixed(2), midX, min.y - offset * 0.1, (zDim + max.z) * 0.5, -90, -90, 0, textScale);
     };
 
@@ -409,22 +440,22 @@ assetListLoader.load(() => {
         {
             pos: new pc.Vec3(c.x, c.y + he.y * f, c.z),
             title: '顶部结构',
-            text: '顶部区域的关键结构位置示例。'
+            text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明'
         },
         {
             pos: new pc.Vec3(c.x + he.x * f, c.y, c.z),
             title: '正面结构',
-            text: '正面区域的关键结构位置示例。'
+            text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明。'
         },
         {
             pos: new pc.Vec3(c.x, c.y, c.z + he.z * f),
             title: '侧面结构',
-            text: '侧面区域的关键结构位置示例。'
+            text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明。'
         },
         {
             pos: new pc.Vec3(c.x - he.x * f, c.y, c.z),
             title: '背面结构',
-            text: '背面区域的关键结构位置示例。'
+            text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明。'
         }
     ];
 
