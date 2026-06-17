@@ -31,7 +31,6 @@ pc.basisInitialize({
 
 const assets = {
     model: new pc.Asset('Sk7420A_260_1', 'container', { url: './assets/scene/models/Sk7420A_260_1.glb' }),
-    font: new pc.Asset('font', 'font', { url: './assets/fonts/courier.json' }),
     shanghai: new pc.Asset(
         'shanghai',
         'texture',
@@ -62,7 +61,7 @@ createOptions.componentSystems = [
     pc.ElementComponentSystem,
     pc.GSplatComponentSystem
 ];
-createOptions.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler, pc.FontHandler, pc.GSplatHandler];
+createOptions.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler, pc.GSplatHandler];
 
 const app = new pc.AppBase(canvas);
 app.init(createOptions);
@@ -200,14 +199,26 @@ assetListLoader.load(() => {
     });
     app.root.addChild(screen);
 
+    const loremIpsum =
+        '上海机床厂有限公司主营业务是各类磨床的生产制造，主要产品品种有：外圆磨床、平面磨床、轧辊磨床、曲轴磨床等十大类普通、精密、大型、专用、数控等磨床，其中外圆系列磨床、数控端面外圆磨床、数控车轴磨床、数控曲轴磨床等产品技术处于国内前列。';
+
+    const canvasFont = new pc.CanvasFont(app, {
+        color: new pc.Color(1, 1, 1),
+        fontName: 'Microsoft YaHei, PingFang SC, Noto Sans CJK SC, Arial',
+        fontSize: 48,
+        width: 1024,
+        height: 1024
+    });
+    canvasFont.createTextures(loremIpsum);
+
     const introPanel = new pc.Entity('introPanel');
     introPanel.addComponent('element', {
         type: pc.ELEMENTTYPE_IMAGE,
-        anchor: [0, 1, 0, 1],
-        pivot: [0, 1],
-        width: 500,
-        height: 150,
-        margin: [24, -24, 0, 0],
+        anchor: [0, 0.5, 0, 0.5],
+        pivot: [0, 0.5],
+        width: 373,
+        height: 240,
+        margin: [24, 0, 0, 0],
         color: new pc.Color(0, 0, 0),
         opacity: 0.65
     });
@@ -218,33 +229,32 @@ assetListLoader.load(() => {
         type: pc.ELEMENTTYPE_TEXT,
         anchor: [0, 1, 1, 1],
         pivot: [0, 1],
-        margin: [18, -14, 18, 0],
-        height: 28,
-        fontAsset: assets.font.id,
+        margin: [18, 0, 18, -14],
+        height: 0,
         fontSize: 22,
         color: new pc.Color(1, 0.85, 0.25),
-        text: '设备标注说明',
+        text: '',
         autoHeight: true,
         wrapLines: false
     });
+    introTitle.element.font = canvasFont;
     introPanel.addChild(introTitle);
 
-    const loremIpsum =
-        '上海机床厂有限公司主营业务是各类磨床的生产制造，主要产品品种有：外圆磨床、平面磨床、轧辊磨床、曲轴磨床等十大类普通、精密、大型、专用、数控等磨床，其中外圆系列磨床、数控端面外圆磨床、数控车轴磨床、数控曲轴磨床等产品技术处于国内前列。';
     const introText = new pc.Entity('introText');
     introText.addComponent('element', {
         type: pc.ELEMENTTYPE_TEXT,
         anchor: [0, 0, 1, 1],
         pivot: [0, 1],
-        margin: [18, 18, 18, -48],
-        fontAsset: assets.font.id,
+        margin: [18, 18, 18, -18],
+        height: 190,
         fontSize: 18,
         lineHeight: 24,
         color: new pc.Color(1, 1, 1),
         text: loremIpsum,
-        autoHeight: true,
+        autoHeight: false,
         wrapLines: true
     });
+    introText.element.font = canvasFont;
     introPanel.addChild(introText);
     introText.element.rangeStart = 0;
     introText.element.rangeEnd = 0;
