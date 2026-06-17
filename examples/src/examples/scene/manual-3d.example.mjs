@@ -336,7 +336,8 @@ Object.assign(cc, {
 cc.rotateDamping = 0.985;
 cc.zoomDamping = 0.985;
 cc.focusDamping = 0.985;
-cc.zoomRange = new pc.Vec2(10, 120);
+cc.zoomRange = new pc.Vec2(1, 120);
+// cc.zoomRange = new pc.Vec2(10, 120);  //把最近缩放距离调小一些，改成更容易贴近模型但又不至于穿模太明显的值。
 cc.pitchRange = new pc.Vec2(-80, 80);
 cc.reset(bbox.center, start);
 
@@ -344,7 +345,7 @@ const info = {
     manualName: '3D手册',
     equipmentCode: '总装图',
     equipmentName: '数控螺纹磨床SK7420A',
-    equipmentIntro: '此示例使用 PlayCanvas Engine 加载本地 glb：assets/scene/models/machineAll.glb'
+    equipmentIntro: '应用场景：用于设备结果解析 / 设备维修辅助'
 };
 
 const overlay = document.createElement('div');
