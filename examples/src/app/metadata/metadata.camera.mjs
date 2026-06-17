@@ -2,6 +2,12 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\camera",
         categoryKebab: "camera",
+        exampleNameKebab: "annotations",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\camera",
+        categoryKebab: "camera",
         exampleNameKebab: "first-person",
         hidden: false
     },

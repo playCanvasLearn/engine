@@ -145,7 +145,7 @@ assetListLoader.load(() => {
     uiPanel.className = 'gsplat-panel';
 
     const uiTitle = document.createElement('div');
-    uiTitle.textContent = 'GSplat Entities';
+    uiTitle.textContent = '高斯实体列表';
     uiTitle.className = 'gsplat-title';
     uiPanel.appendChild(uiTitle);
 

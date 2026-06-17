@@ -239,6 +239,10 @@ export const menuOverrides = {
             "label": "展示与控制技术",
             "hidden": false,
             "examples": {
+                "annotations": {
+                    "label": "机床结构说明",
+                    "hidden": false
+                },
                 "first-person": {
                     "label": "自主漫游模式",
                     "hidden": false
@@ -864,27 +868,23 @@ export const menuOverrides = {
         },
         "misc": {
             "label": "杂项",
-            "hidden": true,
+            "hidden": false,
             "examples": {
                 "animated-sprite": {
                     "label": "ANIMATEDSPRITE",
-                    "hidden": false
-                },
-                "annotations": {
-                    "label": "ANNOTATIONS",
-                    "hidden": false
+                    "hidden": true
                 },
                 "editor": {
                     "label": "编辑器",
-                    "hidden": false
+                    "hidden": true
                 },
                 "esm-script": {
                     "label": "ESM脚本",
-                    "hidden": false
+                    "hidden": true
                 },
                 "hello-world": {
                     "label": "你好，世界",
-                    "hidden": false
+                    "hidden": true
                 },
                 "html-texture": {
                     "label": "HTML纹理",
@@ -896,15 +896,15 @@ export const menuOverrides = {
                 },
                 "mini-stats": {
                     "label": "性能统计",
-                    "hidden": false
+                    "hidden": true
                 },
                 "multi-app": {
                     "label": "多APP",
-                    "hidden": false
+                    "hidden": true
                 },
                 "spineboy": {
                     "label": "SPINEBOY",
-                    "hidden": false
+                    "hidden": true
                 }
             }
         },
