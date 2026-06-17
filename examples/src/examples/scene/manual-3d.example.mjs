@@ -103,6 +103,7 @@ if (!navigator.webdriver) {
 }
 
 const modelRoot = assets.model.resource.instantiateRenderEntity();
+modelRoot.setLocalEulerAngles(0, -90, 0);
 app.root.addChild(modelRoot);
 
 const hiddenNameIncludes = [

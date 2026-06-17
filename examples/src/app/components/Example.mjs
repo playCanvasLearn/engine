@@ -1297,7 +1297,7 @@ class Example extends TypedComponent {
             }),
             !external && !loading && layout !== 'mobile' && this.renderDescription(),
             !external && !loading && layout !== 'mobile' && this.renderCreditsOverlay(),
-            !external && !loading && (layout === 'mobile' ? this.renderMobile() : this.renderDesktop())
+            !loading && (layout === 'mobile' ? this.renderMobile() : this.renderDesktop())
         );
     }
 }
