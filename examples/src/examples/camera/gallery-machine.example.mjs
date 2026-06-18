@@ -3,6 +3,7 @@
 // 机床展览馆 - 支持上一个/下一个切换与淡入/淡出动画。
 
 import * as pc from 'playcanvas';
+import { ShadowCatcher } from 'playcanvas/scripts/esm/shadow-catcher.mjs';
 
 import { deviceType } from 'examples/context';
 
@@ -54,14 +55,15 @@ await new Promise((resolve) => {
 const MODEL_COUNT = 3;
 
 const modelMeta = [
-    { title: 'Arm Assembly 260', desc: 'Compact rotary actuator assembly for precision positioning in automated manufacturing lines.' },
-    { title: 'Arm Assembly 750', desc: 'Heavy-duty rotary actuator with extended reach for large-scale industrial automation.' },
-    { title: 'Classical Statue', desc: 'Detailed plaster cast reproduction of a classical marble sculpture.' }
+    { title: 'Sk7420A 260-1 机床', desc: '磨床是专门用于精密加工圆柱形、圆锥形以及台阶轴类零件外表面和端面的高精度机床。它通过高速旋转的砂轮对工件进行微量切削，以达到极高的尺寸精度、圆柱度（真圆度）和表面光洁度' },
+    { title: 'Sk7420A 750-1 机床', desc: '磨床是专门用于精密加工圆柱形、圆锥形以及台阶轴类零件外表面和端面的高精度机床。它通过高速旋转的砂轮对工件进行微量切削，以达到极高的尺寸精度、圆柱度（真圆度）和表面光洁度' },
+    { title: '数控螺纹磨床', desc: '用于加工高精度螺纹的专用机床。它结合了数控（CNC）技术与精密磨削工艺，通过预设程序精准控制砂轮与工件的运动轨迹和进给速度，能够实现微米级的加工精度，广泛应用于机床、机器人、航空航天及高端汽车制造等领域' }
 ];
 
 const modelSlugs = ['260', '750', 'statue'];
 const modelFilenames = ['Sk7420A_260_1.glb', 'Sk7420A_750_1.glb', 'main_draco.glb'];
 const modelYaws = [-30, 0, 30];
+const modelRotateSpeed = [30, 25, 20];
 
 const MODEL_CENTER = new pc.Vec3(0, 0, 0);
 
@@ -100,41 +102,45 @@ assetListLoader.load(() => {
         const skybox = pc.EnvLighting.generateSkyboxCubemap(source);
         app.scene.skybox = skybox;
         app.scene.skyboxIntensity = 1;
-        const lighting = pc.EnvLighting.generateLightingSource(skybox);
+        const lighting = pc.EnvLighting.generateLightingSource(source);
         const envAtlas = pc.EnvLighting.generateAtlas(lighting);
         lighting.destroy();
         app.scene.envAtlas = envAtlas;
     };
     applyHdri(assets.hdri.resource);
 
+    device.on('devicerestored', () => {
+        applyHdri(assets.hdri.resource);
+    });
+
+    app.scene.sky.type = pc.SKYTYPE_DOME;
+    app.scene.sky.node.setLocalScale(new pc.Vec3(50, 50, 50));
+    app.scene.sky.node.setLocalPosition(new pc.Vec3(0, 0, 0));
+    app.scene.sky.center = new pc.Vec3(0, 0.1, 0);
+
     // --- Create camera ---
     const camera = new pc.Entity('camera');
     camera.addComponent('camera', {
-        clearColor: new pc.Color(0.2, 0.2, 0.2),
-        toneMapping: pc.TONEMAP_ACES
+        clearColor: new pc.Color(0.5, 0.6, 0.9),
+        toneMapping: pc.TONEMAP_ACES2
     });
     app.root.addChild(camera);
 
-    const ORBIT_PIVOT = MODEL_CENTER.clone();
-    const ORBIT_DISTANCE = 4;
-    const ORBIT_INITIAL_YAW = 28;
-    const ORBIT_INITIAL_PITCH = -15;
-
     camera.addComponent('script');
-    const orbitCam = camera.script.create('orbitCamera', {
-        attributes: {
-            inertiaFactor: 0.2,
-            distanceMax: 30,
-            frameOnStart: false
-        }
-    });
-    if (orbitCam) {
-        orbitCam.pivotPoint.copy(ORBIT_PIVOT);
-        orbitCam.reset(ORBIT_INITIAL_YAW, ORBIT_INITIAL_PITCH, ORBIT_DISTANCE);
-        orbitCam._updatePosition();
-    }
     camera.script.create('orbitCameraInputMouse');
     camera.script.create('orbitCameraInputTouch');
+
+    // --- Directional light ---
+    const light = new pc.Entity('light');
+    light.addComponent('light', {
+        type: 'directional',
+        castShadows: true,
+        shadowDistance: 30,
+        shadowIntensity: 0.6,
+        shadowResolution: 1024,
+        shadowType: pc.SHADOW_VSM_16F
+    });
+    app.root.addChild(light);
 
     // --- Create model entities ---
     const modelEntities = [];
@@ -142,6 +148,7 @@ assetListLoader.load(() => {
         const entity = assets[modelSlugs[i]].resource.instantiateRenderEntity();
         entity.setLocalPosition(MODEL_CENTER);
         entity.setLocalEulerAngles(0, modelYaws[i], 0);
+        entity.setLocalScale(1, 1, 1);
         app.root.addChild(entity);
 
         const render = entity.render;
@@ -161,6 +168,45 @@ assetListLoader.load(() => {
         modelEntities.push(entity);
     }
 
+    app.root.syncHierarchy();
+
+    // --- Compute camera distance from first model's AABB ---
+    const computeSceneSize = () => {
+        const aabb = new pc.BoundingBox();
+        let hasBounds = false;
+        for (const render of modelEntities[0].findComponents('render')) {
+            for (const mi of render.meshInstances) {
+                if (mi.aabb) {
+                    if (!hasBounds) {
+                        aabb.copy(mi.aabb);
+                        hasBounds = true;
+                    } else {
+                        aabb.add(mi.aabb);
+                    }
+                }
+            }
+        }
+        return hasBounds ? Math.max(aabb.halfExtents.x, aabb.halfExtents.y, aabb.halfExtents.z) * 2 : 2;
+    };
+    const sceneSize = computeSceneSize();
+    const ORBIT_PIVOT = MODEL_CENTER.clone();
+    const ORBIT_DISTANCE = sceneSize * 2.0;
+    const ORBIT_INITIAL_YAW = 28;
+    const ORBIT_INITIAL_PITCH = -15;
+
+    const orbitCam = camera.script.create('orbitCamera', {
+        attributes: {
+            inertiaFactor: 0.2,
+            distanceMax: Math.max(ORBIT_DISTANCE * 8, 30),
+            frameOnStart: false
+        }
+    });
+    if (orbitCam) {
+        orbitCam.pivotPoint.copy(ORBIT_PIVOT);
+        orbitCam.reset(ORBIT_INITIAL_YAW, ORBIT_INITIAL_PITCH, ORBIT_DISTANCE);
+        orbitCam._updatePosition();
+    }
+
     // --- Post-processing ---
     const cameraFrame = new pc.CameraFrame(app, camera.camera);
     cameraFrame.bloom.enabled = true;
@@ -173,11 +219,21 @@ assetListLoader.load(() => {
     cameraFrame.vignette.intensity = 0.4;
     cameraFrame.update();
 
+    // --- Shadow catcher ---
+    const shadowCatcher = new pc.Entity('shadowCatcher');
+    shadowCatcher.addComponent('script');
+    shadowCatcher.script.create(ShadowCatcher, {
+        properties: {
+            scale: new pc.Vec3(20, 20, 20)
+        }
+    });
+    app.root.addChild(shadowCatcher);
+
     // --- UI overlay ---
     const style = document.createElement('style');
     style.textContent = `
         #gallery-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; user-select: none; font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
-        #gallery-info { position: absolute; top: 24px; right: 24px; background: rgba(30,30,30,0.5); color: #fff; padding: 16px; border-radius: 5px; backdrop-filter: blur(10px); width: 320px; max-width: 90%; pointer-events: auto; }
+        #gallery-info { position: absolute; top: 50%; right: 24px; transform: translateY(-50%); background: rgba(30,30,30,0.5); color: #fff; padding: 16px; border-radius: 5px; backdrop-filter: blur(10px); width: 320px; max-width: 90%; pointer-events: auto; }
         #gallery-info h1 { font-size: 28px; margin: 0 0 4px 0; font-weight: 300; }
         #gallery-info p { margin: 4px 0; font-size: 11px; opacity: 0.6; line-height: 1.4; }
         #gallery-info .desc { opacity: 1; font-size: 13px; line-height: 1.3; }
@@ -188,7 +244,7 @@ assetListLoader.load(() => {
         #gallery-nav button:hover .label { display: inline; }
         .gallery-counter { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.4); font-size: 12px; pointer-events: none; letter-spacing: 2px; }
         @media (max-width: 800px) {
-            #gallery-info { top: 0; right: 0; width: 100%; max-width: 100%; border-radius: 0; }
+            #gallery-info { top: 0; right: 0; width: 100%; max-width: 100%; border-radius: 0; transform: none; }
         }
     `;
     document.head.appendChild(style);
@@ -212,8 +268,8 @@ assetListLoader.load(() => {
     const nav = document.createElement('div');
     nav.id = 'gallery-nav';
     nav.innerHTML = `
-        <button id="g-prev"><span class="label">previous</span> &#9664;</button>
-        <button id="g-next">&#9654; <span class="label">next</span></button>
+        <button id="g-prev"><span class="label">上一个</span> &#9664;</button>
+        <button id="g-next">&#9654; <span class="label">下一个</span></button>
     `;
     overlay.appendChild(nav);
     document.body.appendChild(overlay);
@@ -282,6 +338,13 @@ assetListLoader.load(() => {
 
     // --- Update loop ---
     app.on('update', (dt) => {
+        // Self-rotation for each enabled model
+        for (let i = 0; i < MODEL_COUNT; i++) {
+            if (modelEntities[i].enabled) {
+                modelEntities[i].rotate(0, modelRotateSpeed[i] * dt, 0);
+            }
+        }
+
         if (transitioning) {
             animTime += dt;
 
