@@ -3,8 +3,6 @@
 // 设备展览馆 - 基于高斯泼溅的雕塑艺术画廊，支持上一个/下一个切换与淡入/淡出动画。
 
 import * as pc from 'playcanvas';
-import { CameraControls } from 'playcanvas/scripts/esm/camera-controls.mjs';
-
 import { deviceType } from 'examples/context';
 
 import shaderGlslVert from './shader.glsl.vert';
@@ -70,19 +68,12 @@ const statueFilenames = [
 
 const STATUE_COUNT = statueMeta.length;
 
-// Place statues in a gentle semicircle
-const statuePositions = [];
-const STATUE_RADIUS = 4;
-for (let i = 0; i < STATUE_COUNT; i++) {
-    const angle = ((i / (STATUE_COUNT - 1)) - 0.5) * Math.PI * 0.7;
-    statuePositions.push(new pc.Vec3(
-        Math.sin(angle) * STATUE_RADIUS,
-        0,
-        Math.cos(angle) * STATUE_RADIUS
-    ));
-}
+// All statues centered at the same origin point
+const STATUE_CENTER = new pc.Vec3(0, 0.8, 0);
 
-const LERP_SPEED = 2;
+// Each statue gets a unique Y rotation so different angles are visible
+const statueYaw = (i) => ((i / STATUE_COUNT) - 0.5) * 120;
+
 const FADE_OUT_DURATION = 0.5;
 const FADE_IN_DURATION = 1.5;
 
@@ -137,7 +128,7 @@ assetListLoader.load(() => {
     cubemapTexture.setSource(cubemapFaces.map(f => assets[`cubemap_${f}`].resource.getSource()));
 
     app.scene.skybox = cubemapTexture;
-    app.scene.skyboxIntensity = 1;
+    app.scene.skyboxIntensity = 2;
     app.scene.sky.type = pc.SKYTYPE_DOME;
     app.scene.sky.node.setLocalScale(new pc.Vec3(50, 50, 50));
     app.scene.sky.center = new pc.Vec3(0, 0.1, 0);
@@ -148,27 +139,46 @@ assetListLoader.load(() => {
     lighting.destroy();
     app.scene.envAtlas = envAtlas;
 
+    // --- Directional light for head highlights ---
+    const light = new pc.Entity('light');
+    light.addComponent('light', {
+        type: 'directional',
+        color: new pc.Color(1, 0.95, 0.9),
+        intensity: 3,
+        castShadows: false
+    });
+    light.setLocalEulerAngles(40, 20, 0);
+    app.root.addChild(light);
+
     // --- Create camera ---
     const camera = new pc.Entity('camera');
     camera.addComponent('camera', {
-        clearColor: new pc.Color(0.02, 0.02, 0.04),
+        clearColor: new pc.Color(0.2, 0.2, 0.2),
         toneMapping: pc.TONEMAP_ACES
     });
     app.root.addChild(camera);
 
-    const focusPoint = statuePositions[0].clone();
-    focusPoint.y = 0.8;
+    // Orbit camera matching original multi-splat position
+    const ORBIT_PIVOT = STATUE_CENTER.clone();
+    const ORBIT_DISTANCE = 5;
+    const ORBIT_INITIAL_YAW = 28;
+    const ORBIT_INITIAL_PITCH = -8;
 
     camera.addComponent('script');
-    camera.script.create(CameraControls, {
-        properties: {
-            focusPoint,
-            sceneSize: 4,
-            pitchRange: new pc.Vec2(-30, 60),
-            zoomRange: new pc.Vec2(1, 8),
-            distance: 5
+    const orbitCam = camera.script.create('orbitCamera', {
+        attributes: {
+            inertiaFactor: 0.2,
+            distanceMax: 60,
+            frameOnStart: false
         }
     });
+    if (orbitCam) {
+        orbitCam.pivotPoint.copy(ORBIT_PIVOT);
+        orbitCam.reset(ORBIT_INITIAL_YAW, ORBIT_INITIAL_PITCH, ORBIT_DISTANCE);
+        orbitCam._updatePosition();
+    }
+    camera.script.create('orbitCameraInputMouse');
+    camera.script.create('orbitCameraInputTouch');
 
     // --- Create statue entities ---
     const statueEntities = [];
@@ -178,9 +188,8 @@ assetListLoader.load(() => {
             asset: assets[statueSlugs[i]],
             enabled: i === 0
         });
-        entity.setLocalPosition(statuePositions[i]);
-        const angle = Math.atan2(statuePositions[i].x, statuePositions[i].z);
-        entity.setLocalEulerAngles(0, -angle * 180 / Math.PI, 0);
+        entity.setLocalPosition(STATUE_CENTER);
+        entity.setLocalEulerAngles(0, statueYaw(i), 0);
         app.root.addChild(entity);
         statueEntities.push(entity);
     }
@@ -360,19 +369,15 @@ assetListLoader.load(() => {
             }
         }
 
-        // Lerp camera focus point toward current statue
-        const targetFocus = statuePositions[currentIndex].clone();
-        targetFocus.y = 0.8;
-        focusPoint.lerp(focusPoint, targetFocus, Math.min(1, LERP_SPEED * dt));
-
         // Auto-rotate
         if (!autoRotate && (Date.now() - lastInteraction) > AUTO_ROTATE_DELAY) {
             autoRotate = true;
         }
         if (autoRotate) {
-            const controls = camera.script?.get(CameraControls);
-            if (controls && !transitioning) {
-                controls.yaw += AUTO_ROTATE_SPEED * dt;
+            const oc = camera.script?.orbitCamera;
+            if (oc && !transitioning) {
+                oc.yaw += AUTO_ROTATE_SPEED * dt;
+                oc._updatePosition();
             }
         }
     });
