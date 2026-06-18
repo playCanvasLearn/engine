@@ -6,7 +6,6 @@ import * as pc from 'playcanvas';
 import { Annotation, AnnotationManager } from 'playcanvas/scripts/esm/annotations.mjs';
 import { CameraControls } from 'playcanvas/scripts/esm/camera-controls.mjs';
 import { GsplatLines } from 'playcanvas/scripts/esm/gsplat/gsplat-lines.mjs';
-import { GsplatText } from 'playcanvas/scripts/esm/gsplat/gsplat-text.mjs';
 import { ShadowCatcher } from 'playcanvas/scripts/esm/shadow-catcher.mjs';
 
 import { data, deviceType } from 'examples/context';
@@ -249,7 +248,7 @@ assetListLoader.load(() => {
     data.set('data', {
         showIntro: true,
         showLines: true,
-        hotspotSize: 25,
+        hotspotSize: 40,
         hotspotColor: [0.8, 0.8, 0.8],
         hoverColor: [1, 0.4, 0],
         opacity: 1,
@@ -261,27 +260,60 @@ assetListLoader.load(() => {
     const yellow = new pc.Color(1, 0.9, 0.2, 1);
     const cyan = new pc.Color(0.2, 0.9, 1, 1);
     const gray = new pc.Color(0.5, 0.5, 0.5, 0.8);
+    const dimensionRoot = new pc.Entity('dimensions');
+    modelRoot.addChild(dimensionRoot);
+
+    const dimensionFont = new pc.CanvasFont(app, {
+        color: new pc.Color(1, 1, 1),
+        fontName: 'Arial',
+        fontSize: 64,
+        width: 512,
+        height: 256
+    });
+    dimensionFont.createTextures('0123456789.');
 
     let linesEntity = null;
-    const textEntities = [];
+    const dimensionLabels = [];
 
-    const createTextLabel = (text, x, y, z, rotX, rotY, rotZ, scale) => {
-        const textEntity = new pc.Entity(`Text-${text}`);
-        textEntity.addComponent('script');
-        const textScript = textEntity.script.create(GsplatText);
-        textScript.text = text;
-        textScript.fontSize = 48;
-        textScript.fillStyle = '#3a8dff';
-        textScript.strokeStyle = 'rgba(0,0,0,0.9)';
-        textScript.strokeWidth = 3;
-        textScript.padding = 8;
-        textEntity.setLocalPosition(x, y, z);
-        textEntity.setLocalEulerAngles(rotX, rotY, rotZ);
+    const createTextLabel = (text, position, scale = 0.01) => {
+        const labelRoot = new pc.Entity(`dimension-${text}`);
+        labelRoot.setLocalPosition(position);
 
-        textEntity.setLocalScale(scale, scale, scale);
-        modelRoot.addChild(textEntity);
-        textEntities.push(textEntity);
-        return textEntity;
+        const labelScreen = new pc.Entity('screen');
+        labelScreen.setLocalScale(scale, scale, scale);
+        labelScreen.setLocalEulerAngles(0, 180, 0);
+        labelScreen.addComponent('screen', {
+            referenceResolution: new pc.Vec2(256, 64),
+            screenSpace: false
+        });
+        labelRoot.addChild(labelScreen);
+
+        const labelText = new pc.Entity('text');
+        labelText.addComponent('element', {
+            pivot: new pc.Vec2(0.5, 0.5),
+            anchor: new pc.Vec4(0.5, 0.5, 0.5, 0.5),
+            width: 220,
+            height: 48,
+            fontSize: 14,
+            color: new pc.Color(0.227, 0.553, 1),
+            text,
+            autoWidth: false,
+            autoHeight: false,
+            wrapLines: false,
+            type: pc.ELEMENTTYPE_TEXT
+        });
+        labelText.element.font = dimensionFont;
+        labelScreen.addChild(labelText);
+
+        dimensionRoot.addChild(labelRoot);
+        dimensionLabels.push(labelRoot);
+        return labelRoot;
+    };
+
+    const updateDimensionLabels = () => {
+        for (const label of dimensionLabels) {
+            label.lookAt(camera.getPosition());
+        }
     };
 
     const createLinesEntity = () => {
@@ -294,7 +326,7 @@ assetListLoader.load(() => {
         linesEntity = new pc.Entity('Lines');
         linesEntity.addComponent('script');
         const lines = linesEntity.script.create(GsplatLines);
-        app.root.addChild(linesEntity);
+        dimensionRoot.addChild(linesEntity);
 
         const min = modelAabb.getMin().clone();
         const max = modelAabb.getMax().clone();
@@ -303,15 +335,9 @@ assetListLoader.load(() => {
         const thickness = Math.max(0.001, maxDim * 0.0015);
         const arrowHeadSize = thickness * 27;
         const offset = maxDim * 0.12;
-        const textScale = Math.max(0.15, maxDim * 0.03);
-
-        const modelToWorld = modelRoot.getWorldTransform();
-        const worldA = new pc.Vec3();
-        const worldB = new pc.Vec3();
+        const labelScale = Math.max(0.006, maxDim * 0.005);
         const lineLocal = (ax, ay, az, bx, by, bz, color, width) => {
-            modelToWorld.transformPoint(worldA.set(ax, ay, az), worldA);
-            modelToWorld.transformPoint(worldB.set(bx, by, bz), worldB);
-            lines.addLineSimple(worldA, worldB, color, width);
+            lines.addLineSimple(new pc.Vec3(ax, ay, az), new pc.Vec3(bx, by, bz), color, width);
         };
 
         const midX = (min.x + max.x) * 0.5;
@@ -335,31 +361,26 @@ assetListLoader.load(() => {
         lineLocal(min.x, min.y, max.z, min.x, max.y, max.z, yellow, boxWidth);
 
         const yDim = max.y + offset;
-        modelToWorld.transformPoint(worldA.set(min.x, yDim, midZ), worldA);
-        modelToWorld.transformPoint(worldB.set(max.x, yDim, midZ), worldB);
-        lines.addArrow(worldA, worldB, cyan, thickness * 0.8, arrowHeadSize);
-        lines.addArrow(worldB, worldA, cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(new pc.Vec3(min.x, yDim, midZ), new pc.Vec3(max.x, yDim, midZ), cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(new pc.Vec3(max.x, yDim, midZ), new pc.Vec3(min.x, yDim, midZ), cyan, thickness * 0.8, arrowHeadSize);
         lineLocal(min.x, max.y, midZ, min.x, yDim, midZ, gray, thickness * 0.5);
         lineLocal(max.x, max.y, midZ, max.x, yDim, midZ, gray, thickness * 0.5);
 
         const xDim = max.x + offset;
-        modelToWorld.transformPoint(worldA.set(xDim, min.y, midZ), worldA);
-        modelToWorld.transformPoint(worldB.set(xDim, max.y, midZ), worldB);
-        lines.addArrow(worldA, worldB, cyan, thickness * 0.8, arrowHeadSize);
-        lines.addArrow(worldB, worldA, cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(new pc.Vec3(xDim, min.y, midZ), new pc.Vec3(xDim, max.y, midZ), cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(new pc.Vec3(xDim, max.y, midZ), new pc.Vec3(xDim, min.y, midZ), cyan, thickness * 0.8, arrowHeadSize);
         lineLocal(max.x, min.y, midZ, xDim, min.y, midZ, gray, thickness * 0.5);
         lineLocal(max.x, max.y, midZ, xDim, max.y, midZ, gray, thickness * 0.5);
 
         const zDim = min.z - offset;
-        modelToWorld.transformPoint(worldA.set(midX, min.y, zDim), worldA);
-        modelToWorld.transformPoint(worldB.set(midX, min.y, max.z), worldB);
-        lines.addArrow(worldA, worldB, cyan, thickness * 0.8, arrowHeadSize);
-        lines.addArrow(worldB, worldA, cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(new pc.Vec3(midX, min.y, zDim), new pc.Vec3(midX, min.y, max.z), cyan, thickness * 0.8, arrowHeadSize);
+        lines.addArrow(new pc.Vec3(midX, min.y, max.z), new pc.Vec3(midX, min.y, zDim), cyan, thickness * 0.8, arrowHeadSize);
         lineLocal(midX, min.y, min.z, midX, min.y, zDim, gray, thickness * 0.5);
 
-        createTextLabel(size.x.toFixed(2), midX, yDim + offset * 0.15, midZ, -90, 180, 0, textScale);
-        createTextLabel(size.y.toFixed(2), xDim + offset * 0.15, midY, midZ, 0, -180, -90, textScale);
-        createTextLabel(size.z.toFixed(2), midX, min.y - offset * 0.1, (zDim + max.z) * 0.5, -90, -90, 0, textScale);
+        createTextLabel(size.x.toFixed(2), new pc.Vec3(midX, yDim + offset * 0.15, midZ), labelScale);
+        createTextLabel(size.y.toFixed(2), new pc.Vec3(xDim, midY + offset * 0.15, midZ), labelScale);
+        createTextLabel(size.z.toFixed(2), new pc.Vec3(midX, min.y + offset * 0.15, (zDim + max.z) * 0.5), labelScale);
+        updateDimensionLabels();
     };
 
     const destroyLinesEntity = () => {
@@ -367,10 +388,10 @@ assetListLoader.load(() => {
             linesEntity.destroy();
             linesEntity = null;
         }
-        for (const textEntity of textEntities) {
-            textEntity.destroy();
+        for (const label of dimensionLabels) {
+            label.destroy();
         }
-        textEntities.length = 0;
+        dimensionLabels.length = 0;
     };
 
     if (data.get('data.showLines') === true) {
@@ -448,6 +469,7 @@ assetListLoader.load(() => {
     });
 
     updateIntroText();
+    app.on('update', updateDimensionLabels);
 
     const typewriterId = setInterval(() => {
         if (data.get('data.showIntro') !== true) {
@@ -461,6 +483,7 @@ assetListLoader.load(() => {
         updateIntroText();
     }, 55);
     app.on('destroy', () => clearInterval(typewriterId));
+    app.on('destroy', destroyLinesEntity);
 
     const shadowCatcher = new pc.Entity('shadowCatcher');
     shadowCatcher.addComponent('script');
