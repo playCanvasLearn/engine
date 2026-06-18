@@ -3,6 +3,7 @@
 // 设备展览馆 - 基于高斯泼溅的雕塑艺术画廊，支持上一个/下一个切换与淡入/淡出动画。
 
 import * as pc from 'playcanvas';
+
 import { deviceType } from 'examples/context';
 
 import shaderGlslVert from './shader.glsl.vert';
@@ -195,7 +196,7 @@ assetListLoader.load(() => {
     }
 
     // --- Apply custom shader ---
-    applyCustomShader(true);
+    applyCustomShader(false);
     sceneMat.setParameter('uGalleryTime', 1.0);
     sceneMat.setParameter('uGalleryMode', 0.0);
     sceneMat.update();
