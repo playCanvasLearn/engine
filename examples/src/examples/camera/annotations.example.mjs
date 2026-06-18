@@ -1,6 +1,6 @@
 // @config
 //
-// 适用于给工业设备/产品模型添加“热点标注”，用于讲解结构、功能点或操作位置。
+// 适用于给工业设备/产品模型添加“热点标注”，用于讲解结构、功能点或操作设备指导等。
 
 import * as pc from 'playcanvas';
 import { Annotation, AnnotationManager } from 'playcanvas/scripts/esm/annotations.mjs';
@@ -448,10 +448,15 @@ assetListLoader.load(() => {
             text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明'
         },
         {
-            pos: new pc.Vec3(c.x + he.x * f, c.y, c.z),
-            title: '正面结构',
+            pos: new pc.Vec3(c.x + he.x * f, c.y+1, c.z),
+            title: '机门结构',
             text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明。'
         },
+        {
+            pos: new pc.Vec3(c.x + he.x * f, c.y+1, c.z-2),
+            title: '操控面板',
+            text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明。'
+        },        
         {
             pos: new pc.Vec3(c.x, c.y, c.z + he.z * f),
             title: '侧面结构',
