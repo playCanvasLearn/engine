@@ -258,6 +258,10 @@ export const menuOverrides = {
                 "orbit": {
                     "label": "模型展示环绕控制",
                     "hidden": false
+                },
+                "gallery": {
+                    "label": "设备展览馆",
+                    "hidden": false
                 }
             }
         },
