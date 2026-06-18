@@ -153,7 +153,7 @@ assetListLoader.load(() => {
             blend: {
                 name: 'blend',
                 type: 'FLOAT',
-                value: 0
+                value: 0.6
             }
         }
     };
@@ -169,6 +169,7 @@ assetListLoader.load(() => {
     // console.log(assets.model.resource.animations);
     app.root.addChild(modelEntity);
 
+    data.set('blend', 0.6);
     data.on('blend:set', (/** @type {number} */ blend) => {
         modelEntity.anim.setFloat('blend', blend);
     });

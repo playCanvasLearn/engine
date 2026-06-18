@@ -244,7 +244,7 @@ assetListLoader.load(() => {
 
     modelRoot.addComponent('script');
     const manager = modelRoot.script.create(AnnotationManager);
-
+    manager.hotspotSize = 40;
     data.set('data', {
         showIntro: true,
         showLines: true,
@@ -457,7 +457,7 @@ assetListLoader.load(() => {
             pos: new pc.Vec3(c.x + he.x * f, c.y+1, c.z-2),
             title: '操控面板',
             text: '结构说明结构说明结构说明结构说明结构说明结构说明结构说明结构说明。'
-        },        
+        },
         {
             pos: new pc.Vec3(c.x, c.y, c.z + he.z * f),
             title: '侧面结构',
