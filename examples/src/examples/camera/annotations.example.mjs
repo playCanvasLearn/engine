@@ -190,74 +190,58 @@ assetListLoader.load(() => {
         }
     });
 
-    const screen = new pc.Entity('screen');
-    screen.addComponent('screen', {
-        referenceResolution: new pc.Vec2(1280, 720),
-        scaleBlend: 0.5,
-        scaleMode: pc.SCALEMODE_BLEND,
-        screenSpace: true
-    });
-    app.root.addChild(screen);
-
     const loremIpsum =
-        '上海机床厂有限公司主营业务是各类磨床的生产制造，主要产品品种有：外圆磨床、平面磨床、轧辊磨床、曲轴磨床等十大类普通、精密、大型、专用、数控等磨床，其中外圆系列磨床、数控端面外圆磨床、数控车轴磨床、数控曲轴磨床等产品技术处于国内前列。';
+        '上海机床厂有限公司主营业务是各类磨床的生产制造，主要产品品种有：外圆磨床、平面磨床、轧辊磨床、曲轴磨床等十大类普通、精密、大型、专用、数控等磨床，其中外圆系列磨床、数控端面外圆磨床、数控车轴磨床、数控曲轴磨床等产品技术处于国内前列。公司在做强磨床产品，保持国内重要地位的同时，逐步扩充磨床类以外的产品，还增加了成型机床的制造和销售，主要产品有QC12Y系列剪板机、WC67Y系列板料折弯机、PS系列数控板料折弯机等，通过产品门类的扩张提升了企业的经营规模。公司技术力量雄厚，建有产品研发中心——上海磨床研究所。该所是磨床行业的技术权威研究机构，全国金属切削机床标准化技术委员会磨床分会设立在该所，在技术进步、行业发展、标准制定等方面起到带头、引导作用。该所主编的《精密制造与自动化》杂志是磨床行业的专业性刊物。同时，拥有一批包括工程院院士、教授级高级工程师在内的专业技术人员，为公司产品研发提供技术支持。 自2009年起，公司紧紧抓住国家重大专项立项机遇，已先后获得国家“高档数控机床和基础制造装备” 科技重大专项课题十项，通过国家验收九项，为企业进一步调结构、走高端，赶超国际先进水平、实现替代进口目标奠定了坚实的基础。  公司以“塑造人品，制造精品”的质量理念贯穿于生产、经营、管理等全过程，相继获得：出口管理一类企业、上海市文明单位、上海市质量管理奖、上海市高新技术企业、中国最具市场竞争力品牌、现代化管理企业、中国名牌、自主创新品牌、上海名牌等殊荣。 公司通过不断自主创新，瞄准国际磨床的先进水平，以提升国内机床行业的技术品位为己任，推动产品升级换代。';
 
-    const canvasFont = new pc.CanvasFont(app, {
-        color: new pc.Color(1, 1, 1),
-        fontName: 'Microsoft YaHei, PingFang SC, Noto Sans CJK SC, Arial',
-        fontSize: 48,
-        width: 1024,
-        height: 1024
-    });
-    canvasFont.createTextures(loremIpsum);
+    const introPanel = document.createElement('div');
+    introPanel.style.cssText = `
+        position: absolute;
+        left: 24px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 373px;
+        height: 240px;
+        background: rgba(0, 0, 0, 0.65);
+        box-sizing: border-box;
+        padding: 18px;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 20;
+    `;
 
-    const introPanel = new pc.Entity('introPanel');
-    introPanel.addComponent('element', {
-        type: pc.ELEMENTTYPE_IMAGE,
-        anchor: [0, 0.5, 0, 0.5],
-        pivot: [0, 0.5],
-        width: 373,
-        height: 240,
-        margin: [24, 0, 0, 0],
-        color: new pc.Color(0, 0, 0),
-        opacity: 0.65
-    });
-    screen.addChild(introPanel);
+    const introViewport = document.createElement('div');
+    introViewport.style.cssText = `
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    `;
 
-    const introTitle = new pc.Entity('introTitle');
-    introTitle.addComponent('element', {
-        type: pc.ELEMENTTYPE_TEXT,
-        anchor: [0, 1, 1, 1],
-        pivot: [0, 1],
-        margin: [18, 0, 18, -14],
-        height: 0,
-        fontSize: 22,
-        color: new pc.Color(1, 0.85, 0.25),
-        text: '',
-        autoHeight: true,
-        wrapLines: false
-    });
-    introTitle.element.font = canvasFont;
-    introPanel.addChild(introTitle);
+    const introTextEl = document.createElement('div');
+    introTextEl.style.cssText = `
+        color: #ffffff;
+        font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+        font-size: 18px;
+        line-height: 24px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        will-change: transform;
+    `;
 
-    const introText = new pc.Entity('introText');
-    introText.addComponent('element', {
-        type: pc.ELEMENTTYPE_TEXT,
-        anchor: [0, 0, 1, 1],
-        pivot: [0, 1],
-        margin: [18, 18, 18, -18],
-        height: 190,
-        fontSize: 18,
-        lineHeight: 24,
-        color: new pc.Color(1, 1, 1),
-        text: loremIpsum,
-        autoHeight: false,
-        wrapLines: true
+    introViewport.appendChild(introTextEl);
+    introPanel.appendChild(introViewport);
+    document.body.appendChild(introPanel);
+
+    let introCharCount = 0;
+    const updateIntroText = () => {
+        introTextEl.textContent = loremIpsum.slice(0, introCharCount);
+        const overflow = Math.max(0, introTextEl.scrollHeight - introViewport.clientHeight);
+        introTextEl.style.transform = `translateY(-${overflow}px)`;
+    };
+
+    app.on('destroy', () => {
+        introPanel.remove();
     });
-    introText.element.font = canvasFont;
-    introPanel.addChild(introText);
-    introText.element.rangeStart = 0;
-    introText.element.rangeEnd = 0;
 
     modelRoot.addComponent('script');
     const manager = modelRoot.script.create(AnnotationManager);
@@ -396,10 +380,10 @@ assetListLoader.load(() => {
     data.on('*:set', (path, value) => {
         const prop = path.split('.')[1];
         if (prop === 'showIntro') {
-            introPanel.enabled = value === true;
+            introPanel.style.display = value === true ? 'block' : 'none';
             if (value === true) {
-                introText.element.rangeStart = 0;
-                introText.element.rangeEnd = 0;
+                introCharCount = 0;
+                updateIntroText();
             }
         } else if (prop === 'showLines') {
             if (value === true) {
@@ -463,15 +447,18 @@ assetListLoader.load(() => {
         modelRoot.addChild(createAnnotation(pos, String(index + 1), title, text));
     });
 
+    updateIntroText();
+
     const typewriterId = setInterval(() => {
         if (data.get('data.showIntro') !== true) {
             return;
         }
 
-        introText.element.rangeEnd += 1;
-        if (introText.element.rangeEnd >= loremIpsum.length) {
-            introText.element.rangeEnd = 0;
+        introCharCount += 1;
+        if (introCharCount >= loremIpsum.length) {
+            introCharCount = 0;
         }
+        updateIntroText();
     }, 55);
     app.on('destroy', () => clearInterval(typewriterId));
 
