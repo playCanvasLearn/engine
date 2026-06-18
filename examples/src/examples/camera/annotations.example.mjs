@@ -337,7 +337,8 @@ assetListLoader.load(() => {
         const offset = maxDim * 0.12;
         const labelScale = Math.max(0.006, maxDim * 0.005);
         const lineLocal = (ax, ay, az, bx, by, bz, color, width) => {
-            lines.addLineSimple(new pc.Vec3(ax, ay, az), new pc.Vec3(bx, by, bz), color, width);
+           // lines.addLineSimple(new pc.Vec3(ax, ay, az), new pc.Vec3(bx, by, bz), color, width);
+           // 模型旁边黄色标线
         };
 
         const midX = (min.x + max.x) * 0.5;
