@@ -485,6 +485,95 @@ buttons.appendChild(explodedButton);
 buttons.appendChild(separateButton);
 buttons.appendChild(mainBodyButton);
 
+const paramsButton = makeButton('实时运行参数', '#9C27B0', '#7B1FA2');
+buttons.appendChild(paramsButton);
+
+const paramsOverlay = document.createElement('div');
+paramsOverlay.style.cssText = [
+    'position: fixed',
+    'top: 0',
+    'left: 0',
+    'width: 100%',
+    'height: 100%',
+    'background: rgba(0,0,0,0.5)',
+    'display: none',
+    'align-items: center',
+    'justify-content: center',
+    'z-index: 100',
+    'font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif'
+].join(';');
+document.body.appendChild(paramsOverlay);
+
+const paramsPanel = document.createElement('div');
+paramsPanel.style.cssText = [
+    'background: #fff',
+    'border-radius: 12px',
+    'padding: 24px 28px',
+    'width: min(400px, calc(100vw - 40px))',
+    'max-height: 80vh',
+    'overflow-y: auto',
+    'box-shadow: 0 20px 60px rgba(0,0,0,0.3)'
+].join(';');
+paramsOverlay.appendChild(paramsPanel);
+
+const header = document.createElement('div');
+header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
+const headerTitle = document.createElement('div');
+headerTitle.style.cssText = 'font-size:18px;font-weight:700;color:#0b1220;';
+headerTitle.textContent = '实时运行参数';
+const closeBtn = document.createElement('button');
+closeBtn.textContent = '✕';
+closeBtn.style.cssText = 'background:none;border:none;font-size:22px;cursor:pointer;color:#666;padding:0;line-height:1;';
+closeBtn.addEventListener('click', () => {
+    paramsOverlay.style.display = 'none';
+});
+header.appendChild(headerTitle);
+header.appendChild(closeBtn);
+paramsPanel.appendChild(header);
+
+const divider = document.createElement('div');
+divider.style.cssText = 'border-top:1px solid #eee;padding-top:14px;';
+paramsPanel.appendChild(divider);
+
+const grid = document.createElement('div');
+grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;';
+divider.appendChild(grid);
+
+const paramItems = [
+    { label: '主轴温度', value: '52°', color: '#e53935' },
+    { label: '主轴转速', value: '1820 r/min', color: '#1e88e5' },
+    { label: '砂轮直径', value: '485.55 mm', color: '#43a047' },
+    { label: '砂轮线速度', value: '48 m/s', color: '#1e88e5' },
+    { label: 'X轴温度', value: '38°', color: '#fb8c00' },
+    { label: 'Z轴温度', value: '41°', color: '#fb8c00' },
+    { label: 'X轴负载', value: '62%', color: '#43a047' },
+    { label: 'Z轴负载', value: '45%', color: '#43a047' }
+];
+
+for (const item of paramItems) {
+    const cell = document.createElement('div');
+    cell.style.cssText = 'background:#f5f5f5;border-radius:8px;padding:12px;';
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:12px;color:#888;margin-bottom:4px;';
+    label.textContent = item.label;
+    const value = document.createElement('div');
+    value.style.cssText = `font-size:20px;font-weight:700;color:${item.color};`;
+    value.textContent = item.value;
+    cell.appendChild(label);
+    cell.appendChild(value);
+    grid.appendChild(cell);
+}
+
+paramsOverlay.addEventListener('click', (e) => {
+    if (e.target === paramsOverlay) {
+        paramsOverlay.style.display = 'none';
+    }
+});
+
+paramsButton.addEventListener('click', () => {
+    paramsOverlay.style.display = 'flex';
+});
+
 const worldCenter = bbox.center.clone();
 const renderEntities = new Map();
 modelRoot.findComponents('render').forEach((render) => {
@@ -552,6 +641,99 @@ const setIsolation = (enabled, focusEntity) => {
     isolatedEntity = null;
 };
 
+const partInfoPanel = document.createElement('div');
+partInfoPanel.style.cssText = [
+    'position: fixed',
+    'left: 16px',
+    'top: 50%',
+    'transform: translateY(-60%)',
+    'z-index: 15',
+    'display: none',
+    'width: min(320px, calc(100vw - 32px))',
+    'max-height: 70vh',
+    'overflow-y: auto',
+    'background: rgba(255,255,255,0.95)',
+    'backdrop-filter: blur(10px)',
+    'border-radius: 12px',
+    'padding: 16px 18px',
+    'box-shadow: 0 10px 30px rgba(16,24,40,0.16)',
+    'font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif',
+    'color: #0b1220'
+].join(';');
+document.body.appendChild(partInfoPanel);
+
+const partInfoClose = document.createElement('button');
+partInfoClose.textContent = '\u2715';
+partInfoClose.style.cssText = [
+    'position: absolute',
+    'top: 10px',
+    'right: 12px',
+    'background: none',
+    'border: none',
+    'font-size: 18px',
+    'cursor: pointer',
+    'color: #999',
+    'padding: 0',
+    'line-height: 1'
+].join(';');
+partInfoPanel.appendChild(partInfoClose);
+
+const partInfoBody = document.createElement('div');
+partInfoBody.style.cssText = 'margin-top:4px;padding-right:20px;';
+partInfoPanel.appendChild(partInfoBody);
+
+const partInfoData = {
+    '主要部件': {
+        title: '砂轮主轴',
+        description: '采用高精度滚珠轴承支撑，中间为内装式同步电机，电机采用专用冷却水进行内冷却，配备外置式动平衡装置，实现在线砂轮平衡，恒线速磨削。',
+        specs: '砂轮尺寸：Φ500×10×Φ305\n砂轮转速范围：0～3500 r/min\n最大砂轮线速度：60 m/s',
+        monitoring: '主轴当前温度：52°\n主轴当前转速：1820转\n砂轮直径：485.55 mm'
+    },
+    '主要部件_3': {
+        title: '头架部件',
+        description: '头架采用内装式力矩电机直接驱动，实现工件磨削的无级变速。并保证转速范围内的恒转矩输出。主轴系统的支承采用前后滚动轴承支承形式。头架配置高精度角度编码器实现全闭环控制。',
+        specs: '头架顶尖：莫式5#\n工件转速范围：0.5～100 rpm\n双向定位精度：±3″\n双向重复定位精度R：±2″\n光栅配置：高精度圆光栅：±2″',
+        monitoring: '当前头架温度：23°\n当前头架转速：30 r/min'
+    },
+    '主要部件_4': {
+        title: '尾架部件',
+        description: '尾架体壳分上下两层，以便微量调整头、尾架中心连线。尾架顶尖套筒为一体式圆形套筒，装在尾架体壳中。通过弹簧预压、转动手柄使套筒伸缩，带着固定式顶尖移动。尾架配有高精度长度计对工件的热伸长实时监控；配置气浮装置，方便尾架移动。',
+        specs: '尾架顶尖：莫式5#',
+        monitoring: '尾架热伸长数据：0.002'
+    },
+    '主要部件_10': {
+        title: '机床床身',
+        description: '床身整体式铸造，前后布局，具有良好的抗振性和热稳定性。采用低应力，高强度孕育铸铁，具有很高的整体刚度和表面耐磨性及抗震能力，并经合理的时效处理，导轨接触面采用手工刮研工艺。满足高效、高精度设备基础件的要求。工作台横向运动由交流伺服电机经预加负荷的高精度滚珠丝杠直接传动。运动导轨为平、V导轨配置滚柱框移动。',
+        specs: '工作台行程：750mm\n砂轮架行程：350mm\n工作台横向移动速度：0.1～4000 mm/min\n砂轮架纵向移动速度：0.1～4000 mm/min\n光栅配置：高精度直线光栅±0.003mm\n双向定位精度A：0.003mm\n双向重复定位精度R：0.002mm',
+        monitoring: 'X轴温度：38°\nZ轴温度：41°\nX轴负载：62%\nZ轴负载：45%'
+    }
+};
+
+const hidePartInfo = () => {
+    partInfoPanel.style.display = 'none';
+};
+
+const showPartInfo = () => {
+    const entries = Object.values(partInfoData);
+    const data = entries[Math.floor(Math.random() * entries.length)];
+    partInfoBody.innerHTML = `<div style="font-size:16px;font-weight:700;margin-bottom:10px;">${data.title}</div>
+<div style="border-top:1px solid #eee;padding-top:10px;"></div>
+<div style="font-size:13px;font-weight:600;color:#555;margin:8px 0 4px;">部件描述</div>
+<div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-line;">${data.description}</div>
+<div style="border-top:1px solid #eee;margin:10px 0;"></div>
+<div style="font-size:13px;font-weight:600;color:#555;margin:8px 0 4px;">主要规格参数及精度</div>
+<div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-line;">${data.specs}</div>
+<div style="border-top:1px solid #eee;margin:10px 0;"></div>
+<div style="font-size:13px;font-weight:600;color:#555;margin:8px 0 4px;">实时监控数据</div>
+<div style="font-size:13px;color:#333;line-height:1.6;white-space:pre-line;">${data.monitoring}</div>`;
+    partInfoPanel.style.display = 'block';
+};
+
+partInfoClose.addEventListener('click', () => {
+    setIsolation(false);
+    hidePartInfo();
+});
+
 const setMainBodyMode = (enabled) => {
     if (enabled === isMainBodyMode) {
         return;
@@ -559,6 +741,7 @@ const setMainBodyMode = (enabled) => {
 
     if (!enabled && isIsolated) {
         setIsolation(false);
+        hidePartInfo();
     }
     isMainBodyMode = enabled;
     mainBodyButton.textContent = isMainBodyMode ? '显示全部' : '显示主要部件';
@@ -766,6 +949,7 @@ canvas.addEventListener('dblclick', (event) => {
     }
     if (isIsolated) {
         setIsolation(false);
+        hidePartInfo();
         return;
     }
 
@@ -792,6 +976,7 @@ canvas.addEventListener('dblclick', (event) => {
             return;
         }
         setIsolation(true, entity);
+        showPartInfo();
     });
 });
 
