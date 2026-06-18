@@ -259,8 +259,12 @@ export const menuOverrides = {
                     "label": "模型展示环绕控制",
                     "hidden": false
                 },
+                "gallery-machine": {
+                    "label": "机床展览馆",
+                    "hidden": false
+                },
                 "gallery": {
-                    "label": "设备展览馆",
+                    "label": "雕塑展览馆",
                     "hidden": false
                 }
             }

@@ -26,6 +26,12 @@ export const exampleMetaData = [
     {
         path: "src\\examples\\camera",
         categoryKebab: "camera",
+        exampleNameKebab: "gallery-machine",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\camera",
+        categoryKebab: "camera",
         exampleNameKebab: "multi",
         hidden: false
     },
