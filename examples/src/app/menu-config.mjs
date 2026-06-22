@@ -265,7 +265,7 @@ export const menuOverrides = {
                 },
                 "gallery": {
                     "label": "雕塑展览馆",
-                    "hidden": false
+                    "hidden": true
                 }
             }
         },

@@ -64,6 +64,7 @@ const modelSlugs = ['260', '750', 'statue'];
 const modelFilenames = ['Sk7420A_260_1.glb', 'Sk7420A_750_1.glb', 'main_draco.glb'];
 const modelYaws = [-30, 0, 30];
 const modelRotateSpeed = [30, 25, 20];
+const modelScales = [0.8, 0.8, 3];
 
 const MODEL_CENTER = new pc.Vec3(0, 0, 0);
 
@@ -87,11 +88,11 @@ const assets = {
     orbit: new pc.Asset('orbit', 'script', { url: './scripts/camera/orbit-camera.js' })
 };
 
-for (let i = 0; i < MODEL_COUNT; i++) {
-    assets[modelSlugs[i]] = new pc.Asset(modelMeta[i].title, 'container', {
-        url: `./assets/scene/models/${modelFilenames[i]}`
-    });
-}
+
+// Only load the first model initially
+assets[modelSlugs[0]] = new pc.Asset(modelMeta[0].title, 'container', {
+    url: `./assets/scene/models/${modelFilenames[0]}`
+});
 
 const assetListLoader = new pc.AssetListLoader(Object.values(assets), app.assets);
 assetListLoader.load(() => {
@@ -142,13 +143,14 @@ assetListLoader.load(() => {
     });
     app.root.addChild(light);
 
-    // --- Create model entities ---
+    // --- Create model entities (lazy) ---
     const modelEntities = [];
-    for (let i = 0; i < MODEL_COUNT; i++) {
-        const entity = assets[modelSlugs[i]].resource.instantiateRenderEntity();
+
+    const createModelEntity = (index) => {
+        const entity = assets[modelSlugs[index]].resource.instantiateRenderEntity();
         entity.setLocalPosition(MODEL_CENTER);
-        entity.setLocalEulerAngles(0, modelYaws[i], 0);
-        entity.setLocalScale(1, 1, 1);
+        entity.setLocalEulerAngles(0, modelYaws[index], 0);
+        entity.setLocalScale(modelScales[index], modelScales[index], modelScales[index]);
         app.root.addChild(entity);
 
         const render = entity.render;
@@ -164,9 +166,35 @@ assetListLoader.load(() => {
             }
         }
 
-        entity.enabled = i === 0;
-        modelEntities.push(entity);
-    }
+        entity.enabled = false;
+        modelEntities[index] = entity;
+    };
+
+    const loadModelAsset = (index) => {
+        return new Promise((resolve) => {
+            if (assets[modelSlugs[index]]?.resource) {
+                resolve();
+                return;
+            }
+            const asset = new pc.Asset(modelMeta[index].title, 'container', {
+                url: `./assets/scene/models/${modelFilenames[index]}`
+            });
+            assets[modelSlugs[index]] = asset;
+            app.assets.add(asset);
+            asset.on('load', () => resolve());
+            app.assets.load(asset);
+        });
+    };
+
+    const ensureModel = async (index) => {
+        if (modelEntities[index]) return;
+        await loadModelAsset(index);
+        createModelEntity(index);
+    };
+
+    // Create first model
+    createModelEntity(0);
+    modelEntities[0].enabled = true;
 
     app.root.syncHierarchy();
 
@@ -283,13 +311,15 @@ assetListLoader.load(() => {
 
     // --- Carousel state ---
     let currentIndex = 0;
+    let prevIndex = 0;
     let transitioning = false;
+    let loadingModel = false;
     let animTime = 0;
     let animMode = 0; // 0=fade in, 1=fade out
 
     const showModel = (index) => {
         modelEntities.forEach((e, i) => {
-            e.enabled = i === index;
+            if (e) e.enabled = i === index;
         });
         if (modelEntities[index]) {
             setOpacity(modelEntities[index], 0);
@@ -297,11 +327,23 @@ assetListLoader.load(() => {
     };
 
     const startTransition = (newIndex) => {
-        if (transitioning || newIndex === currentIndex) return;
+        if (transitioning || loadingModel || newIndex === currentIndex) return;
         transitioning = true;
-        animTime = 0;
-        animMode = 1;
-        currentIndex = newIndex;
+        prevIndex = currentIndex;
+
+        if (!modelEntities[newIndex]) {
+            loadingModel = true;
+            ensureModel(newIndex).then(() => {
+                loadingModel = false;
+                currentIndex = newIndex;
+                animTime = 0;
+                animMode = 1;
+            });
+        } else {
+            currentIndex = newIndex;
+            animTime = 0;
+            animMode = 1;
+        }
     };
 
     const onPrev = () => {
@@ -340,20 +382,19 @@ assetListLoader.load(() => {
     app.on('update', (dt) => {
         // Self-rotation for each enabled model
         for (let i = 0; i < MODEL_COUNT; i++) {
-            if (modelEntities[i].enabled) {
+            if (modelEntities[i] && modelEntities[i].enabled) {
                 modelEntities[i].rotate(0, modelRotateSpeed[i] * dt, 0);
             }
         }
 
-        if (transitioning) {
+        if (transitioning && !loadingModel) {
             animTime += dt;
 
             if (animMode === 1) {
                 // Fade out current
                 const t = Math.min(1, animTime / FADE_OUT_DURATION);
-                const prevIdx = currentIndex === 0 ? MODEL_COUNT - 1 : currentIndex - 1;
-                if (modelEntities[prevIdx]) {
-                    setOpacity(modelEntities[prevIdx], 1 - t);
+                if (modelEntities[prevIndex]) {
+                    setOpacity(modelEntities[prevIndex], 1 - t);
                 }
                 if (animTime >= FADE_OUT_DURATION) {
                     showModel(currentIndex);
