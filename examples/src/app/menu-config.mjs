@@ -194,6 +194,16 @@ export const menuOverrides = {
                     "label": "数控螺纹磨床3D手册",
                     "hidden": false,
                     "order": 120
+                },
+                "robot-worker": {
+                    "label": "机器人工作者",
+                    "hidden": false,
+                    "order": 90
+                },
+                "physics-ai": {
+                    "label": "车间异常模拟",
+                    "hidden": false,
+                    "order": 130
                 }
             }
         },

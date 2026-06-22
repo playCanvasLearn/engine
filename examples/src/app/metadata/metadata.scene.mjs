@@ -18,5 +18,17 @@ export const exampleMetaData = [
         exampleNameKebab: "mes-worker",
         hidden: false,
         externalUrl: "https://mes.365me.me/worker/index.html"
+    },
+    {
+        path: "src\\examples\\scene",
+        categoryKebab: "scene",
+        exampleNameKebab: "physics-ai",
+        hidden: false
+    },
+    {
+        path: "src\\examples\\scene",
+        categoryKebab: "scene",
+        exampleNameKebab: "robot-worker",
+        hidden: false
     }
 ];
