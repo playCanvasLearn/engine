@@ -317,53 +317,77 @@ robotRenderEntity.setLocalEulerAngles(90, 0, 0);
 const billboard = new pc.Entity('Billboard');
 const labelPlane = new pc.Entity('labelPlane');
 labelPlane.addComponent('render', { type: 'plane' });
-labelPlane.setLocalPosition(0, 2.266, 0);
+labelPlane.setLocalPosition(0, 3.399, 0);
 labelPlane.setLocalEulerAngles(90, 90, 0);
-labelPlane.setLocalScale(0.5, 0.5, 0.5);
+labelPlane.setLocalScale(0.75, 0.75, 0.75);
 billboard.addChild(labelPlane);
+app.root.addChild(billboard);
 
 const labelCanvas = document.createElement('canvas');
 labelCanvas.width = 256;
-labelCanvas.height = 64;
+labelCanvas.height = 256;
 const lctx = labelCanvas.getContext('2d');
+
+const getBgColor = (text) => {
+    if (text === '不合格') return 'rgba(220,60,60,0.85)';
+    if (text === '合格') return 'rgba(60,180,90,0.85)';
+    if (text.indexOf('中') !== -1) return 'rgba(70,130,220,0.85)';
+    return 'rgba(0,0,0,0.65)';
+};
+
 const drawLabel = (text) => {
-    lctx.clearRect(0, 0, 256, 64);
-    lctx.fillStyle = 'rgba(0,0,0,0.6)';
-    lctx.roundRect(8, 8, 240, 48, 8);
+    const w = labelCanvas.width;
+    const h = labelCanvas.height;
+    lctx.clearRect(0, 0, w, h);
+
+    const r = 28;
+    lctx.fillStyle = getBgColor(text);
+    lctx.beginPath();
+    lctx.moveTo(r, 0);
+    lctx.arcTo(w, 0, w, h, r);
+    lctx.arcTo(w, h, 0, h, r);
+    lctx.arcTo(0, h, 0, 0, r);
+    lctx.arcTo(0, 0, w, 0, r);
+    lctx.closePath();
     lctx.fill();
+
     lctx.fillStyle = '#ffffff';
-    lctx.font = 'bold 28px sans-serif';
+    lctx.font = 'bold 80px "Microsoft YaHei", Arial';
     lctx.textAlign = 'center';
     lctx.textBaseline = 'middle';
-    lctx.fillText(text, 128, 32);
+    lctx.fillText(text, w / 2, h / 2);
 };
-drawLabel('工作中');
 
-const labelTex = new pc.Texture(device, { width: 256, height: 64, format: pc.PIXELFORMAT_RGBA8 });
-const updateLabelTex = () => {
-    const d = lctx.getImageData(0, 0, 256, 64).data;
-    const px = labelTex.lock();
-    px.set(d);
-    labelTex.unlock();
-};
-updateLabelTex();
+const labelTex = new pc.Texture(device, {
+    format: pc.PIXELFORMAT_R8_G8_B8_A8,
+    autoMipmap: true
+});
+labelTex.setSource(labelCanvas);
 
 const labelMat = new pc.StandardMaterial();
 labelMat.emissiveMap = labelTex;
-labelMat.emissive = new pc.Color(1, 1, 1);
+labelMat.emissive.set(1, 1, 1);
 labelMat.emissiveIntensity = 1;
-labelMat.useLighting = false;
+labelMat.opacityMap = labelTex;
+labelMat.opacity = 1;
 labelMat.blendType = pc.BLEND_NORMAL;
-labelMat.opacity = 0.9;
+labelMat.depthWrite = false;
+labelMat.cull = pc.CULLFACE_NONE;
 labelMat.update();
 
-if (labelPlane.render?.meshInstances?.length) {
-    labelPlane.render.meshInstances[0].material = labelMat;
-}
+const labelModel = labelPlane.render || labelPlane.model;
+if (labelModel) labelModel.material = labelMat;
+
+const updateLabelText = (text) => {
+    drawLabel(text);
+    labelTex.setSource(labelCanvas);
+    labelTex.upload();
+};
+
+updateLabelText('工作中');
 
 const playerEntity = new pc.Entity('RobotWorker');
 playerEntity.addChild(robotRenderEntity);
-playerEntity.addChild(billboard);
 playerEntity.setLocalPosition(1.5, 0.061, 0);
 playerEntity.setLocalScale(1.5, 1.5, 1.5);
 app.root.addChild(playerEntity);
@@ -453,14 +477,6 @@ let doorProgress = 0;
 let doorDir = 0;
 let takeActionDone = false;
 
-const updateLabelText = (text) => {
-    drawLabel(text);
-    updateLabelTex();
-    if (labelPlane.render?.meshInstances?.length) {
-        labelPlane.render.meshInstances[0].material = labelMat;
-    }
-};
-
 const startCycle = () => {
     pathIdx = 0;
     currentSpeed = 0;
@@ -514,8 +530,35 @@ const updateDoors = (dt) => {
     if (doorProgress >= 1 && doorDir > 0) doorDir = 0;
 };
 
+let cameraEntity = null;
+const _labelWorldPos = new pc.Vec3();
+const _labelCameraPos = new pc.Vec3();
+
+const updateLabelFacingForThirdPerson = () => {
+    if (!labelPlane || !cameraEntity) return;
+
+    _labelWorldPos.copy(labelPlane.getPosition());
+    _labelCameraPos.copy(cameraEntity.getPosition());
+    _labelCameraPos.y = _labelWorldPos.y;
+
+    const dx = _labelCameraPos.x - _labelWorldPos.x;
+    const dz = _labelCameraPos.z - _labelWorldPos.z;
+    if (Math.abs(dx) <= 1e-4 && Math.abs(dz) <= 1e-4) return;
+
+    const yaw = Math.atan2(dx, dz) * 180 / Math.PI;
+    labelPlane.setLocalEulerAngles(90, yaw, 0);
+};
+
 app.on('update', (dt) => {
     updateDoors(dt);
+
+    // Follow robot position
+    billboard.setPosition(playerEntity.getPosition());
+
+    // Billboard: make label face camera
+    updateLabelFacingForThirdPerson();
+
+    if (window.__robotPauseAnimation) return;
 
     if (pathIdx >= path.length) {
         setStatus(0);
@@ -665,6 +708,7 @@ camera.addComponent('script');
 camera.setPosition(16.27, 12.33, -0.49);
 camera.setLocalEulerAngles(-30, 90, 0);
 app.root.addChild(camera);
+cameraEntity = camera;
 
 const cc = camera.script.create(CameraControls);
 Object.assign(cc, {
@@ -679,3 +723,911 @@ Object.assign(cc, {
 });
 
 app.on('destroy', () => {});
+
+// ====== Toolbar ======
+
+const TOOLBAR_ID = 'bottom-toolbar';
+
+(function injectToolbarCss() {
+    if (document.getElementById('opencode-toolbar-css')) return;
+    const css = [
+        '.bottom-toolbar {',
+        '    position: fixed;',
+        '    left: 50%;',
+        '    bottom: 12px;',
+        '    transform: translateX(-50%);',
+        '    display: flex;',
+        '    gap: 10px;',
+        '    padding: 10px 12px;',
+        '    border-radius: 14px;',
+        '    background: rgba(16, 18, 20, 0.72);',
+        '    border: 1px solid rgba(255, 255, 255, 0.12);',
+        '    backdrop-filter: blur(10px);',
+        '    -webkit-backdrop-filter: blur(10px);',
+        '    z-index: 10001;',
+        '    pointer-events: auto;',
+        '    user-select: none;',
+        '}',
+        '@supports (bottom: env(safe-area-inset-bottom)) {',
+        '    .bottom-toolbar {',
+        '        bottom: calc(12px + env(safe-area-inset-bottom));',
+        '    }',
+        '}',
+        '.bottom-toolbar .toolbar-btn {',
+        '    width: 44px;',
+        '    height: 44px;',
+        '    border-radius: 12px;',
+        '    border: 1px solid rgba(255, 255, 255, 0.12);',
+        '    background: rgba(255, 255, 255, 0.06);',
+        '    display: inline-flex;',
+        '    align-items: center;',
+        '    justify-content: center;',
+        '    cursor: pointer;',
+        '    padding: 0;',
+        '    outline: none;',
+        '    position: relative;',
+        '}',
+        '.bottom-toolbar .toolbar-btn:hover::after {',
+        '    content: attr(aria-label);',
+        '    position: absolute;',
+        '    left: 50%;',
+        '    bottom: 52px;',
+        '    transform: translateX(-50%);',
+        '    padding: 6px 8px;',
+        '    border-radius: 10px;',
+        '    background: rgba(16, 18, 20, 0.92);',
+        '    border: 1px solid rgba(255, 255, 255, 0.14);',
+        '    color: rgba(255, 255, 255, 0.92);',
+        '    font-size: 12px;',
+        '    line-height: 1;',
+        '    white-space: nowrap;',
+        '    pointer-events: none;',
+        '    z-index: 10003;',
+        '}',
+        '.bottom-toolbar .toolbar-btn:hover::before {',
+        '    content: "";',
+        '    position: absolute;',
+        '    left: 50%;',
+        '    bottom: 44px;',
+        '    transform: translateX(-50%);',
+        '    width: 0;',
+        '    height: 0;',
+        '    border-style: solid;',
+        '    border-width: 6px 6px 0 6px;',
+        '    border-color: rgba(16, 18, 20, 0.92) transparent transparent transparent;',
+        '    pointer-events: none;',
+        '    z-index: 10003;',
+        '}',
+        '.bottom-toolbar .toolbar-btn svg {',
+        '    width: 22px;',
+        '    height: 22px;',
+        '    fill: none;',
+        '    stroke: rgba(255, 255, 255, 0.92);',
+        '    stroke-width: 1.8;',
+        '    stroke-linecap: round;',
+        '    stroke-linejoin: round;',
+        '}',
+        '.bottom-toolbar .toolbar-btn.is-active {',
+        '    background: rgba(0, 153, 255, 0.18);',
+        '    border-color: rgba(0, 153, 255, 0.55);',
+        '}',
+        '.bottom-toolbar .toolbar-btn:active {',
+        '    transform: translateY(1px);',
+        '}',
+        '.bottom-toolbar .toolbar-sep {',
+        '    width: 1px;',
+        '    height: 26px;',
+        '    background: rgba(255, 255, 255, 0.18);',
+        '    align-self: center;',
+        '    margin: 0 2px;',
+        '    pointer-events: none;',
+        '}',
+        '#materials-panel {',
+        '    position: fixed;',
+        '    top: 12px;',
+        '    right: 12px;',
+        '    width: 320px;',
+        '    max-width: calc(100vw - 24px);',
+        '    max-height: calc(100vh - 24px);',
+        '    display: flex;',
+        '    flex-direction: column;',
+        '    border-radius: 14px;',
+        '    background: rgba(16, 18, 20, 0.92);',
+        '    border: 1px solid rgba(255, 255, 255, 0.14);',
+        '    backdrop-filter: blur(10px);',
+        '    -webkit-backdrop-filter: blur(10px);',
+        '    z-index: 10002;',
+        '    overflow: hidden;',
+        '}',
+        '#materials-panel .materials-header {',
+        '    display: flex;',
+        '    flex-direction: column;',
+        '    gap: 8px;',
+        '    padding: 12px 12px 10px 12px;',
+        '    border-bottom: 1px solid rgba(255, 255, 255, 0.10);',
+        '}',
+        '#materials-panel .materials-title {',
+        '    color: rgba(255, 255, 255, 0.92);',
+        '    font-size: 13px;',
+        '    font-weight: 600;',
+        '    letter-spacing: 0.2px;',
+        '}',
+        '#materials-panel .materials-search {',
+        '    width: 100%;',
+        '    height: 34px;',
+        '    border-radius: 10px;',
+        '    border: 1px solid rgba(255, 255, 255, 0.12);',
+        '    background: rgba(255, 255, 255, 0.06);',
+        '    color: rgba(255, 255, 255, 0.92);',
+        '    padding: 0 10px;',
+        '    outline: none;',
+        '    box-sizing: border-box;',
+        '}',
+        '#materials-panel .materials-search::placeholder {',
+        '    color: rgba(255, 255, 255, 0.45);',
+        '}',
+        '#materials-panel .materials-list {',
+        '    padding: 8px 8px 10px 8px;',
+        '    overflow: auto;',
+        '    flex: 1;',
+        '}',
+        '#materials-panel .scene-row {',
+        '    display: flex;',
+        '    align-items: center;',
+        '    gap: 8px;',
+        '    padding-top: 8px;',
+        '    padding-bottom: 8px;',
+        '    border-radius: 10px;',
+        '    border: 1px solid rgba(255, 255, 255, 0.08);',
+        '    background: rgba(255, 255, 255, 0.03);',
+        '    margin: 0 0 8px 0;',
+        '    cursor: pointer;',
+        '    user-select: none;',
+        '}',
+        '#materials-panel .scene-row:hover {',
+        '    background: rgba(255, 255, 255, 0.05);',
+        '}',
+        '#materials-panel .scene-row.is-selected {',
+        '    background: rgba(0, 153, 255, 0.16);',
+        '    border-color: rgba(0, 153, 255, 0.38);',
+        '}',
+        '#materials-panel .scene-toggle {',
+        '    width: 12px;',
+        '    height: 12px;',
+        '    flex: 0 0 12px;',
+        '    position: relative;',
+        '}',
+        '#materials-panel .scene-toggle:before {',
+        '    content: "";',
+        '    position: absolute;',
+        '    top: 1px;',
+        '    left: 3px;',
+        '    width: 0;',
+        '    height: 0;',
+        '    border-style: solid;',
+        '    border-width: 5px 0 5px 6px;',
+        '    border-color: transparent transparent transparent rgba(255, 255, 255, 0.70);',
+        '    transform-origin: 2px 5px;',
+        '}',
+        '#materials-panel .scene-toggle.is-open:before {',
+        '    transform: rotate(90deg);',
+        '}',
+        '#materials-panel .scene-toggle.is-leaf:before {',
+        '    border-width: 0;',
+        '}',
+        '#materials-panel .scene-name {',
+        '    color: rgba(255, 255, 255, 0.92);',
+        '    font-size: 13px;',
+        '    line-height: 1.2;',
+        '    word-break: break-word;',
+        '    flex: 1;',
+        '}',
+        '#materials-panel .scene-name.is-match {',
+        '    color: rgba(0, 153, 255, 0.95);',
+        '}',
+        '#materials-panel .scene-eye {',
+        '    margin-left: auto;',
+        '    width: 28px;',
+        '    height: 28px;',
+        '    border-radius: 10px;',
+        '    border: 1px solid rgba(255, 255, 255, 0.12);',
+        '    background: rgba(255, 255, 255, 0.05);',
+        '    display: inline-flex;',
+        '    align-items: center;',
+        '    justify-content: center;',
+        '    padding: 0;',
+        '    cursor: pointer;',
+        '}',
+        '#materials-panel .scene-eye svg {',
+        '    width: 18px;',
+        '    height: 18px;',
+        '    fill: none;',
+        '    stroke: rgba(255, 255, 255, 0.80);',
+        '    stroke-width: 1.8;',
+        '    stroke-linecap: round;',
+        '    stroke-linejoin: round;',
+        '}',
+        '#materials-panel .materials-empty {',
+        '    color: rgba(255, 255, 255, 0.55);',
+        '    font-size: 12px;',
+        '    padding: 12px 10px;',
+        '}'
+    ].join('\n');
+
+    const style = document.createElement('style');
+    style.id = 'opencode-toolbar-css';
+    style.type = 'text/css';
+    style.appendChild(document.createTextNode(css));
+    document.head.appendChild(style);
+})();
+
+if (!document.getElementById(TOOLBAR_ID)) {
+    const createIconSvg = (type) => {
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('aria-hidden', 'true');
+
+        if (type === 'fixed') {
+            const p1 = document.createElementNS(ns, 'path');
+            p1.setAttribute('d', 'M12 5a7 7 0 1 0 7 7');
+            svg.appendChild(p1);
+            const p2 = document.createElementNS(ns, 'path');
+            p2.setAttribute('d', 'M19 5v6h-6');
+            svg.appendChild(p2);
+            const p3 = document.createElementNS(ns, 'path');
+            p3.setAttribute('d', 'M19 11a7 7 0 0 0-7-6');
+            svg.appendChild(p3);
+            return svg;
+        }
+
+        if (type === 'third') {
+            const rect = document.createElementNS(ns, 'rect');
+            rect.setAttribute('x', '3');
+            rect.setAttribute('y', '7');
+            rect.setAttribute('width', '18');
+            rect.setAttribute('height', '12');
+            rect.setAttribute('rx', '2');
+            rect.setAttribute('ry', '2');
+            svg.appendChild(rect);
+            const dot = document.createElementNS(ns, 'circle');
+            dot.setAttribute('cx', '12');
+            dot.setAttribute('cy', '13');
+            dot.setAttribute('r', '2');
+            svg.appendChild(dot);
+            return svg;
+        }
+
+        if (type === 'materials') {
+            const p = document.createElementNS(ns, 'path');
+            p.setAttribute('d', 'M12 3l8 4v10l-8 4l-8-4V7l8-4z');
+            svg.appendChild(p);
+            const l1 = document.createElementNS(ns, 'path');
+            l1.setAttribute('d', 'M12 3v18');
+            svg.appendChild(l1);
+            const l2 = document.createElementNS(ns, 'path');
+            l2.setAttribute('d', 'M4 7l8 4l8-4');
+            svg.appendChild(l2);
+            return svg;
+        }
+
+        if (type === 'eye') {
+            const e1 = document.createElementNS(ns, 'path');
+            e1.setAttribute('d', 'M2 12s4-7 10-7s10 7 10 7s-4 7-10 7S2 12 2 12z');
+            svg.appendChild(e1);
+            const e2 = document.createElementNS(ns, 'circle');
+            e2.setAttribute('cx', '12');
+            e2.setAttribute('cy', '12');
+            e2.setAttribute('r', '3');
+            svg.appendChild(e2);
+            return svg;
+        }
+
+        if (type === 'tv') {
+            const r1 = document.createElementNS(ns, 'rect');
+            r1.setAttribute('x', '4');
+            r1.setAttribute('y', '6');
+            r1.setAttribute('width', '16');
+            r1.setAttribute('height', '11');
+            r1.setAttribute('rx', '2');
+            r1.setAttribute('ry', '2');
+            svg.appendChild(r1);
+            const s1 = document.createElementNS(ns, 'path');
+            s1.setAttribute('d', 'M9 20h6');
+            svg.appendChild(s1);
+            const s2 = document.createElementNS(ns, 'path');
+            s2.setAttribute('d', 'M12 17v3');
+            svg.appendChild(s2);
+            return svg;
+        }
+
+        if (type === 'fence') {
+            const f1 = document.createElementNS(ns, 'path');
+            f1.setAttribute('d', 'M4 20V7m4 13V7m4 13V7m4 13V7m4 13V7');
+            svg.appendChild(f1);
+            const f2 = document.createElementNS(ns, 'path');
+            f2.setAttribute('d', 'M3 10h18M3 14h18');
+            svg.appendChild(f2);
+            return svg;
+        }
+
+        if (type === 'floor') {
+            const g1 = document.createElementNS(ns, 'path');
+            g1.setAttribute('d', 'M4 10l8-4l8 4l-8 4l-8-4z');
+            svg.appendChild(g1);
+            const g2 = document.createElementNS(ns, 'path');
+            g2.setAttribute('d', 'M4 14l8 4l8-4');
+            svg.appendChild(g2);
+            const g3 = document.createElementNS(ns, 'path');
+            g3.setAttribute('d', 'M12 10v8');
+            svg.appendChild(g3);
+            return svg;
+        }
+
+        if (type === 'pause') {
+            const pr = document.createElementNS(ns, 'rect');
+            pr.setAttribute('x', '6');
+            pr.setAttribute('y', '5');
+            pr.setAttribute('width', '4');
+            pr.setAttribute('height', '14');
+            pr.setAttribute('rx', '1');
+            svg.appendChild(pr);
+            const pl = document.createElementNS(ns, 'rect');
+            pl.setAttribute('x', '14');
+            pl.setAttribute('y', '5');
+            pl.setAttribute('width', '4');
+            pl.setAttribute('height', '14');
+            pl.setAttribute('rx', '1');
+            svg.appendChild(pl);
+            return svg;
+        }
+
+        const head = document.createElementNS(ns, 'path');
+        head.setAttribute('d', 'M12 12a4 4 0 1 0-4-4a4 4 0 0 0 4 4');
+        svg.appendChild(head);
+        const body = document.createElementNS(ns, 'path');
+        body.setAttribute('d', 'M4 21a8 8 0 0 1 16 0');
+        svg.appendChild(body);
+        return svg;
+    };
+
+    const createToolbarButton = (label, iconType, className, isActive) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `toolbar-btn${className ? (` ${className}`) : ''}${isActive ? ' is-active' : ''}`;
+        btn.setAttribute('aria-label', label);
+        btn.appendChild(createIconSvg(iconType));
+        return btn;
+    };
+
+    const createToolbarSeparator = () => {
+        const sep = document.createElement('div');
+        sep.className = 'toolbar-sep';
+        sep.setAttribute('aria-hidden', 'true');
+        return sep;
+    };
+
+    const createToolbarUi = () => {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'bottom-toolbar';
+        toolbar.id = TOOLBAR_ID;
+        toolbar.setAttribute('role', 'toolbar');
+        toolbar.setAttribute('aria-label', '工具栏');
+
+        const btnThird = createToolbarButton('固定视角', 'fixed', '', true);
+        const btnFixed = createToolbarButton('第三人称视角', 'third', '');
+        const btnPauseAnim = createToolbarButton('暂停动画', 'pause', 'toolbar-btn-pause-anim');
+        const btnScene = createToolbarButton('查看场景物品', 'materials', 'toolbar-btn-materials');
+        const btnHideTv = createToolbarButton('隐藏电视', 'tv', 'toolbar-btn-hide-tv');
+        const btnHideFence = createToolbarButton('隐藏围栏', 'fence', 'toolbar-btn-hide-fence');
+        const btnHideFloor = createToolbarButton('隐藏地板', 'floor', 'toolbar-btn-hide-floor');
+
+        toolbar.appendChild(btnThird);
+        toolbar.appendChild(btnFixed);
+        toolbar.appendChild(btnPauseAnim);
+        toolbar.appendChild(createToolbarSeparator());
+        toolbar.appendChild(btnScene);
+        toolbar.appendChild(btnHideTv);
+        toolbar.appendChild(btnHideFence);
+        toolbar.appendChild(btnHideFloor);
+
+        document.body.appendChild(toolbar);
+
+        return { toolbar, btnThird, btnFixed, btnPauseAnim, btnScene, btnHideTv, btnHideFence, btnHideFloor };
+    };
+
+    const createScenePanelUi = () => {
+        const panel = document.createElement('div');
+        panel.id = 'materials-panel';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-label', '场景物品');
+        panel.style.display = 'none';
+
+        const header = document.createElement('div');
+        header.className = 'materials-header';
+
+        const title = document.createElement('div');
+        title.className = 'materials-title';
+        title.innerText = '场景物品';
+
+        const search = document.createElement('input');
+        search.className = 'materials-search';
+        search.type = 'search';
+        search.placeholder = '搜索物品名称';
+        search.autocomplete = 'off';
+        search.spellcheck = false;
+
+        const list = document.createElement('div');
+        list.className = 'materials-list';
+
+        header.appendChild(title);
+        header.appendChild(search);
+        panel.appendChild(header);
+        panel.appendChild(list);
+        document.body.appendChild(panel);
+
+        return { panel, search, list };
+    };
+
+    const ui = createToolbarUi();
+    const sceneUi = createScenePanelUi();
+
+    const viewMode = 'fixed';
+    window.__robotViewMode = viewMode;
+    let isRobotPaused = false;
+    window.__robotPauseAnimation = isRobotPaused;
+    let isSceneOpen = false;
+    let isTvHidden = false;
+    let isFenceHidden = false;
+    let isFloorHidden = false;
+
+    const treeExpanded = Object.create(null);
+    let selectedPath = '';
+    let highlighted = null;
+    let tvTargets = null;
+    let fenceTargets = null;
+    let floorTargets = null;
+    const hiddenEntities = Object.create(null);
+    const hiddenMeshInstances = Object.create(null);
+    const sceneListHiddenNames = {
+        SceneRoot: true,
+        Light: true,
+        MachineEntity: true,
+        cabinetEntity1: true,
+        cabinetEntity2: true,
+        DetectionEntity: true,
+        GroundEntity: true
+    };
+
+    const findByNameLower = (root, nameLower) => {
+        if (!root) return null;
+        const stack = [root];
+        while (stack.length) {
+            const e = stack.pop();
+            const n = (e.name || '').toLowerCase();
+            if (n === nameLower) return e;
+            const children = e.children;
+            for (let i = 0; i < children.length; i++) stack.push(children[i]);
+        }
+        return null;
+    };
+
+    const getSceneRoot = () => {
+        const sr = app.root.findByName('SceneRoot');
+        if (sr) return sr;
+        const sr2 = findByNameLower(app.root, 'sceneroot');
+        if (sr2) return sr2;
+        return app.root;
+    };
+
+    const resolveEntityByPath = (root, path) => {
+        if (!root || !path) return null;
+        const parts = path.split('.');
+        let node = root;
+        for (let i = 1; i < parts.length; i++) {
+            const idx = parseInt(parts[i], 10);
+            if (!node || !node.children || Number.isNaN(idx)) return null;
+            if (idx < 0 || idx >= node.children.length) return null;
+            node = node.children[idx];
+        }
+        return node;
+    };
+
+    const getEntityId = (e) => {
+        if (!e) return '';
+        if (e.getGuid) return e.getGuid();
+        if (e._guid) return e._guid;
+        return e.name || '';
+    };
+
+    const getMeshInstanceId = (mi) => {
+        if (!mi) return '';
+        if (mi.id !== undefined) return String(mi.id);
+        if (mi._id !== undefined) return String(mi._id);
+        const n = mi.node && mi.node.name ? mi.node.name : '';
+        const m = mi.mesh && mi.mesh.name ? mi.mesh.name : '';
+        return `${n}|${m}`;
+    };
+
+    const addHiddenEntity = (e) => {
+        const id = getEntityId(e);
+        if (!id) return;
+        let rec = hiddenEntities[id];
+        if (!rec) {
+            rec = { count: 0, enabled: e.enabled, entity: e };
+            hiddenEntities[id] = rec;
+        }
+        rec.entity = e;
+        rec.count++;
+        e.enabled = false;
+    };
+
+    const removeHiddenEntity = (e) => {
+        const id = getEntityId(e);
+        if (!id) return;
+        const rec = hiddenEntities[id];
+        if (!rec) return;
+        rec.count--;
+        if (rec.count <= 0) {
+            if (rec.entity) rec.entity.enabled = rec.enabled;
+            delete hiddenEntities[id];
+        }
+    };
+
+    const addHiddenMeshInstance = (mi) => {
+        const id = getMeshInstanceId(mi);
+        if (!id) return;
+        let rec = hiddenMeshInstances[id];
+        if (!rec) {
+            rec = { count: 0, visible: mi.visible, mi: mi };
+            hiddenMeshInstances[id] = rec;
+        }
+        rec.mi = mi;
+        rec.count++;
+        mi.visible = false;
+    };
+
+    const removeHiddenMeshInstance = (mi) => {
+        const id = getMeshInstanceId(mi);
+        if (!id) return;
+        const rec = hiddenMeshInstances[id];
+        if (!rec) return;
+        rec.count--;
+        if (rec.count <= 0) {
+            if (rec.mi) rec.mi.visible = rec.visible;
+            delete hiddenMeshInstances[id];
+        }
+    };
+
+    const collectTargetsByNames = (names) => {
+        const set = Object.create(null);
+        for (let i = 0; i < names.length; i++) set[names[i]] = true;
+        const entities = [];
+        const meshInstances = [];
+        app.root.forEach((node) => {
+            if (set[node.name]) entities.push(node);
+
+            let mis = null;
+            if (node.render && node.render.meshInstances) mis = node.render.meshInstances;
+            else if (node.model && node.model.meshInstances) mis = node.model.meshInstances;
+            if (!mis || !mis.length) return;
+
+            for (let j = 0; j < mis.length; j++) {
+                const mi = mis[j];
+                const n1 = mi && mi.node && mi.node.name ? mi.node.name : '';
+                const n2 = mi && mi.mesh && mi.mesh.name ? mi.mesh.name : '';
+                if (set[n1] || set[n2]) meshInstances.push(mi);
+            }
+        });
+        return { entities, meshInstances };
+    };
+
+    const hideTargets = (targets) => {
+        if (!targets) return;
+        const es = targets.entities || [];
+        for (let i = 0; i < es.length; i++) addHiddenEntity(es[i]);
+        const ms = targets.meshInstances || [];
+        for (let j = 0; j < ms.length; j++) addHiddenMeshInstance(ms[j]);
+    };
+
+    const showTargets = (targets) => {
+        if (!targets) return;
+        const es = targets.entities || [];
+        for (let i = 0; i < es.length; i++) removeHiddenEntity(es[i]);
+        const ms = targets.meshInstances || [];
+        for (let j = 0; j < ms.length; j++) removeHiddenMeshInstance(ms[j]);
+    };
+
+    const clearHighlight = () => {
+        if (!highlighted || !highlighted.items) return;
+        for (let i = 0; i < highlighted.items.length; i++) {
+            const it = highlighted.items[i];
+            if (!it || !it.meshInstance) continue;
+            it.meshInstance.material = it.material;
+        }
+        highlighted = null;
+    };
+
+    const applyHighlight = (entity) => {
+        clearHighlight();
+        if (!entity) return;
+        const items = [];
+
+        entity.forEach((node) => {
+            let meshInstances = null;
+            if (node.render && node.render.meshInstances) meshInstances = node.render.meshInstances;
+            else if (node.model && node.model.meshInstances) meshInstances = node.model.meshInstances;
+            if (!meshInstances || !meshInstances.length) return;
+
+            for (let i = 0; i < meshInstances.length; i++) {
+                const mi = meshInstances[i];
+                if (!mi || !mi.material || !mi.material.clone) continue;
+
+                items.push({ meshInstance: mi, material: mi.material });
+
+                const cloned = mi.material.clone();
+                if (cloned.emissive && cloned.emissive.set) cloned.emissive.set(0, 0.6, 1);
+                if (cloned.emissiveIntensity !== undefined) cloned.emissiveIntensity = 1.8;
+                if (cloned.update) cloned.update();
+                mi.material = cloned;
+            }
+        });
+
+        highlighted = { items };
+    };
+
+    const isSceneListHiddenNode = (node) => {
+        if (!node) return false;
+        return !!sceneListHiddenNames[node.name || ''];
+    };
+
+    const shouldShowNode = (node, q, path) => {
+        if (!node) return false;
+        if (isSceneListHiddenNode(node) && path !== '0') return false;
+
+        if (!q) return true;
+        const name = (node.name || '').toLowerCase();
+        if (name.indexOf(q) !== -1) return true;
+        const children = node.children;
+        for (let i = 0; i < children.length; i++) {
+            if (shouldShowNode(children[i], q, `${path}.${i}`)) return true;
+        }
+        return false;
+    };
+
+    const renderSceneTree = () => {
+        const q = (sceneUi.search.value || '').trim().toLowerCase();
+        const root = getSceneRoot();
+        sceneUi.list.textContent = '';
+
+        if (!root) {
+            const empty0 = document.createElement('div');
+            empty0.className = 'materials-empty';
+            empty0.innerText = '未找到 SceneRoot';
+            sceneUi.list.appendChild(empty0);
+            return;
+        }
+
+        let any = false;
+
+        const renderNode = (node, depth, path) => {
+            if (!shouldShowNode(node, q, path)) return;
+
+            const hiddenByName = isSceneListHiddenNode(node);
+            const children = node.children || [];
+
+            if (hiddenByName && path === '0') {
+                for (let rootChildIdx = 0; rootChildIdx < children.length; rootChildIdx++) {
+                    renderNode(children[rootChildIdx], depth, `${path}.${rootChildIdx}`);
+                }
+                return;
+            }
+
+            any = true;
+            const hasChildren = children.length > 0;
+
+            const matched = !q || ((node.name || '').toLowerCase().indexOf(q) !== -1);
+            const expanded = path === '0' || (!!treeExpanded[path]) || (!!q && hasChildren && shouldShowNode(node, q, path));
+
+            const row = document.createElement('div');
+            row.className = `scene-row${selectedPath === path ? ' is-selected' : ''}`;
+            row.dataset.path = path;
+            row.dataset.hasChildren = hasChildren ? '1' : '0';
+            row.dataset.depth = String(depth);
+            row.dataset.expanded = expanded ? '1' : '0';
+            row.style.paddingLeft = `${10 + depth * 14}px`;
+
+            const toggle = document.createElement('div');
+            toggle.className = `scene-toggle${hasChildren ? '' : ' is-leaf'}${expanded ? ' is-open' : ''}`;
+            row.appendChild(toggle);
+
+            const nameEl = document.createElement('div');
+            nameEl.className = `scene-name${matched && q ? ' is-match' : ''}`;
+            nameEl.innerText = node.name || '(未命名)';
+            row.appendChild(nameEl);
+
+            if (path !== '0' && hasChildren) {
+                const eyeBtn = document.createElement('button');
+                eyeBtn.type = 'button';
+                eyeBtn.className = 'scene-eye';
+                eyeBtn.setAttribute('aria-label', '高亮选中');
+                eyeBtn.dataset.path = path;
+                eyeBtn.appendChild(createIconSvg('eye'));
+                row.appendChild(eyeBtn);
+            }
+
+            sceneUi.list.appendChild(row);
+
+            if (!hasChildren) return;
+            if (!expanded) return;
+
+            for (let i = 0; i < children.length; i++) {
+                renderNode(children[i], depth + 1, `${path}.${i}`);
+            }
+        };
+
+        renderNode(root, 0, '0');
+
+        if (!any) {
+            const empty = document.createElement('div');
+            empty.className = 'materials-empty';
+            empty.innerText = '无匹配物品';
+            sceneUi.list.appendChild(empty);
+        }
+    };
+
+    const setSceneOpen = (open) => {
+        if (open === isSceneOpen) return;
+        isSceneOpen = open;
+        if (isSceneOpen) {
+            ui.btnScene.classList.add('is-active');
+            sceneUi.panel.style.display = '';
+            renderSceneTree();
+            sceneUi.search.focus();
+            sceneUi.search.select();
+        } else {
+            ui.btnScene.classList.remove('is-active');
+            sceneUi.panel.style.display = 'none';
+        }
+    };
+
+    sceneUi.search.addEventListener('input', () => {
+        if (!isSceneOpen) return;
+        renderSceneTree();
+    });
+
+    sceneUi.list.addEventListener('click', (ev) => {
+        let t = ev.target;
+        let eye = null;
+        while (t && t !== sceneUi.list) {
+            if (t.classList && t.classList.contains('scene-eye')) {
+                eye = t;
+                break;
+            }
+            t = t.parentElement;
+        }
+
+        if (eye) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const p = eye.dataset.path;
+            if (!p) return;
+            if (selectedPath === p) {
+                selectedPath = '';
+                clearHighlight();
+            } else {
+                selectedPath = p;
+                applyHighlight(resolveEntityByPath(getSceneRoot(), p));
+            }
+            renderSceneTree();
+            return;
+        }
+
+        let el = ev.target;
+        while (el && el !== sceneUi.list && !(el.classList && el.classList.contains('scene-row'))) el = el.parentElement;
+        if (!el || el === sceneUi.list) return;
+
+        const path = el.dataset.path;
+        const hasChildren = el.dataset.hasChildren === '1';
+        const q = (sceneUi.search.value || '').trim();
+
+        if (!hasChildren && path) {
+            selectedPath = path;
+            applyHighlight(resolveEntityByPath(getSceneRoot(), path));
+            renderSceneTree();
+            return;
+        }
+
+        if (!q && hasChildren && path && path !== '0') {
+            treeExpanded[path] = !treeExpanded[path];
+            renderSceneTree();
+        }
+    });
+
+    const syncPauseButton = () => {
+        if (isRobotPaused) ui.btnPauseAnim.classList.add('is-active');
+        else ui.btnPauseAnim.classList.remove('is-active');
+    };
+
+    const swallow = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+    };
+
+    const hookButton = (btn, onClick) => {
+        btn.addEventListener('pointerdown', swallow, { passive: false });
+        btn.addEventListener('click', onClick);
+    };
+
+    const tvNames = [
+        'Mesh_368', 'Mesh_369', 'Mesh_370', 'Mesh_371', 'Mesh_372', 'Mesh_373', 'Mesh_374', 'Mesh_375', 'Mesh_376',
+        'Mesh_377', 'Mesh_378', 'Mesh_379', 'Mesh_380', 'Mesh_381', '屏幕'
+    ];
+
+    const applyTvHidden = (hidden) => {
+        if (hidden === isTvHidden) return;
+        isTvHidden = hidden;
+        if (isTvHidden) {
+            ui.btnHideTv.classList.add('is-active');
+            tvTargets = collectTargetsByNames(tvNames);
+            hideTargets(tvTargets);
+        } else {
+            ui.btnHideTv.classList.remove('is-active');
+            showTargets(tvTargets);
+            tvTargets = null;
+        }
+    };
+
+    hookButton(ui.btnPauseAnim, () => {
+        isRobotPaused = !isRobotPaused;
+        window.__robotPauseAnimation = isRobotPaused;
+        if (isRobotPaused) {
+            setStatus(2);
+        }
+        syncPauseButton();
+    });
+
+    hookButton(ui.btnScene, () => {
+        setSceneOpen(!isSceneOpen);
+    });
+    hookButton(ui.btnHideTv, () => {
+        applyTvHidden(!isTvHidden);
+    });
+
+    hookButton(ui.btnHideFence, () => {
+        const fenceNames = [
+            'Mesh_106', 'Mesh_77', 'Mesh_55', 'Mesh_63', 'Mesh_155', 'Mesh_60', 'Mesh_110', 'Mesh_145', 'Mesh_156', 'Mesh_153', 'Mesh_154',
+            'Mesh_75', 'Mesh_80', 'Mesh_85', 'Mesh_90', 'Mesh_96', 'Mesh_101', 'Mesh_103', 'Mesh_113',
+            'Mesh_48', 'Mesh_53', 'Mesh_58', 'Mesh_62', 'Mesh_64', 'Mesh_66', 'Mesh_68', 'Mesh_69', 'Mesh_71', 'Mesh_72', 'Mesh_76', 'Mesh_78',
+            'Mesh_88', 'Mesh_91', 'Mesh_93', 'Mesh_98', 'Mesh_100', 'Mesh_105', 'Mesh_107', 'Mesh_109', 'Mesh_111', 'Mesh_115', 'Mesh_119',
+            'Mesh_44', 'Mesh_59', 'Mesh_81', 'Mesh_83', 'Mesh_86', 'Mesh_95',
+            'Mesh_40', 'Mesh_49', 'Mesh_54', 'Mesh_57', 'Mesh_62', 'Mesh_67', 'Mesh_73'
+        ];
+        isFenceHidden = !isFenceHidden;
+        if (isFenceHidden) {
+            ui.btnHideFence.classList.add('is-active');
+            fenceTargets = collectTargetsByNames(fenceNames);
+            hideTargets(fenceTargets);
+        } else {
+            ui.btnHideFence.classList.remove('is-active');
+            showTargets(fenceTargets);
+            fenceTargets = null;
+        }
+    });
+
+    hookButton(ui.btnHideFloor, () => {
+        const floorNames = ['Mesh_383'];
+        isFloorHidden = !isFloorHidden;
+        if (isFloorHidden) {
+            ui.btnHideFloor.classList.add('is-active');
+            floorTargets = collectTargetsByNames(floorNames);
+            hideTargets(floorTargets);
+        } else {
+            ui.btnHideFloor.classList.remove('is-active');
+            showTargets(floorTargets);
+            floorTargets = null;
+        }
+    });
+
+    syncPauseButton();
+}
