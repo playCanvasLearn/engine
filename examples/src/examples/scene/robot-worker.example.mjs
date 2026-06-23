@@ -315,6 +315,7 @@ labelPlane.setLocalPosition(0, 2.266, 0);
 labelPlane.setLocalEulerAngles(90, 90, 0);
 labelPlane.setLocalScale(0.5, 0.5, 0.5);
 billboard.addChild(labelPlane);
+const labelBaseEuler = labelPlane.getLocalEulerAngles().clone();
 
 const labelCanvas = document.createElement('canvas');
 labelCanvas.width = 256;
@@ -432,9 +433,13 @@ pickupItem.model.material = pickupMaterial;
 pickupItem.setLocalScale(0.18, 0.12, 0.18);
 sceneRoot.addChild(pickupItem);
 
-const PICKUP_HOME_POS = new pc.Vec3(1.0, 0.2, 5.2);
-const PICKUP_DROP_POS = new pc.Vec3(-1.3, 0.2, 4.5);
+const PICKUP_HOME_POS = new pc.Vec3();
+const PICKUP_DROP_POS = new pc.Vec3();
 const pickupLocalScale = pickupItem.getLocalScale().clone();
+const pickupLocalPos = new pc.Vec3(0.08, 0.08, 0.02);
+const pickupLocalEuler = new pc.Vec3(0, 0, 90);
+const grabSocketWorldPos = new pc.Vec3();
+const grabSocketWorldRot = new pc.Quat();
 const putItemStartPos = new pc.Vec3();
 const putItemMidPos = new pc.Vec3();
 const putItemEndPos = new pc.Vec3();
@@ -445,8 +450,199 @@ const PUT_ITEM_DURATION = 1.8;
 const PUT_ITEM_ROTATE_TURNS = 2;
 
 let heldItem = null;
+let handBoneNode = null;
+let grabSocket = null;
+let pickupGlowShell = null;
+let pickupGlowMaterial = null;
+let pickupGlowTime = 0;
 let putItemActive = false;
 let putItemTime = 0;
+
+const collectMeshInstances = (root, out) => {
+    if (!root) return;
+
+    const comp = root.render || root.model;
+    if (comp?.meshInstances?.length) {
+        for (let i = 0; i < comp.meshInstances.length; i++) out.push(comp.meshInstances[i]);
+    }
+
+    const children = root.children || [];
+    for (let i = 0; i < children.length; i++) collectMeshInstances(children[i], out);
+};
+
+const findBoneNodeFromMeshInstances = (meshInstances, keywords) => {
+    for (let i = 0; i < meshInstances.length; i++) {
+        const bones = meshInstances[i]?.skinInstance?.bones;
+        if (!bones?.length) continue;
+
+        for (let j = 0; j < bones.length; j++) {
+            const bone = bones[j];
+            const name = (bone?.name || '').toLowerCase();
+            for (let k = 0; k < keywords.length; k++) {
+                if (name.indexOf(keywords[k]) !== -1) return bone;
+            }
+        }
+    }
+
+    return null;
+};
+
+const findDescendantByKeywords = (root, keywords) => {
+    if (!root) return null;
+
+    const stack = [root];
+    while (stack.length) {
+        const node = stack.pop();
+        const name = (node.name || '').toLowerCase();
+        for (let i = 0; i < keywords.length; i++) {
+            if (name.indexOf(keywords[i]) !== -1) return node;
+        }
+
+        const children = node.children || [];
+        for (let i = 0; i < children.length; i++) stack.push(children[i]);
+    }
+
+    return null;
+};
+
+const findHandBoneNode = () => {
+    if (handBoneNode) return handBoneNode;
+
+    const meshInstances = [];
+    collectMeshInstances(player, meshInstances);
+
+    const leftHandKeywords = ['lefthand', 'left_hand', 'hand_l', 'l hand', 'mixamorig:lefthand', 'bip001 l hand'];
+    const rightHandKeywords = ['righthand', 'right_hand', 'hand_r', 'r hand', 'mixamorig:righthand', 'bip001 r hand'];
+
+    handBoneNode =
+        findBoneNodeFromMeshInstances(meshInstances, leftHandKeywords) ||
+        findBoneNodeFromMeshInstances(meshInstances, rightHandKeywords) ||
+        findDescendantByKeywords(player, leftHandKeywords) ||
+        findDescendantByKeywords(player, rightHandKeywords) ||
+        null;
+
+    return handBoneNode;
+};
+
+const updateGrabSocketPose = () => {
+    if (!grabSocket) return;
+
+    const handNode = findHandBoneNode();
+    if (handNode?.getPosition && handNode?.getRotation) {
+        grabSocketWorldPos.copy(handNode.getPosition());
+        grabSocketWorldRot.copy(handNode.getRotation());
+    } else {
+        grabSocketWorldPos.copy(player.getPosition());
+        grabSocketWorldRot.copy(player.getRotation());
+    }
+
+    grabSocket.setPosition(grabSocketWorldPos);
+    grabSocket.setRotation(grabSocketWorldRot);
+};
+
+const syncHeldItemPose = () => {
+    if (!heldItem) return;
+
+    heldItem.setLocalPosition(pickupLocalPos);
+    heldItem.setLocalEulerAngles(pickupLocalEuler);
+    heldItem.setLocalScale(pickupLocalScale);
+};
+
+const ensurePickupSelectionFx = () => {
+    pickupGlowShell = pickupItem.findByName('PickupGlowShell');
+    if (!pickupGlowShell) {
+        pickupGlowShell = new pc.Entity('PickupGlowShell');
+        pickupGlowShell.addComponent('model', { type: 'cylinder', castShadows: false, receiveShadows: false });
+        pickupGlowShell.setLocalPosition(0, 0, 0);
+        pickupItem.addChild(pickupGlowShell);
+    }
+
+    pickupGlowMaterial = pickupGlowShell.model.material;
+    if (!pickupGlowMaterial || pickupGlowMaterial.name !== 'PickupGlowMaterial') {
+        pickupGlowMaterial = new pc.StandardMaterial();
+        pickupGlowMaterial.name = 'PickupGlowMaterial';
+        pickupGlowMaterial.diffuse.set(0.15, 0.75, 1);
+        pickupGlowMaterial.emissive.set(0.2, 0.85, 1);
+        pickupGlowMaterial.emissiveIntensity = 1.6;
+        pickupGlowMaterial.opacity = 0.28;
+        pickupGlowMaterial.blendType = pc.BLEND_ADDITIVEALPHA;
+        pickupGlowMaterial.useLighting = false;
+        pickupGlowMaterial.depthWrite = false;
+        pickupGlowMaterial.cull = pc.CULLFACE_NONE;
+        pickupGlowMaterial.update();
+        pickupGlowShell.model.material = pickupGlowMaterial;
+    }
+};
+
+const setPickupSelectionFxMode = (mode) => {
+    if (!pickupGlowMaterial) return;
+
+    if (mode === 'putItem') {
+        pickupGlowMaterial.diffuse.set(1, 0.18, 0.12);
+        pickupGlowMaterial.emissive.set(1, 0.12, 0.08);
+    } else {
+        pickupGlowMaterial.diffuse.set(0.15, 0.75, 1);
+        pickupGlowMaterial.emissive.set(0.2, 0.85, 1);
+    }
+
+    pickupGlowMaterial.update();
+};
+
+const setPickupSelectionFxEnabled = (enabled) => {
+    if (pickupGlowShell) pickupGlowShell.enabled = !!enabled;
+};
+
+const updatePickupSelectionFx = (dt) => {
+    if (!pickupGlowShell || !pickupGlowMaterial || !pickupGlowShell.enabled) return;
+
+    pickupGlowTime += dt;
+    const pulse = 0.5 + 0.5 * Math.sin(pickupGlowTime * 4.2);
+    const scale = 1.35 + pulse * 0.18;
+    pickupGlowShell.setLocalScale(scale, 1.08 + pulse * 0.2, scale);
+    pickupGlowMaterial.opacity = 0.14 + pulse * 0.14;
+    pickupGlowMaterial.emissiveIntensity = 1.2 + pulse * 1.3;
+    pickupGlowMaterial.update();
+};
+
+const initPickupSystem = () => {
+    let pickupNode = null;
+    let dropNode = null;
+
+    for (let i = 0; i < path.length; i++) {
+        const node = path[i];
+        if (!pickupNode && node.turn === 'take' && node.label === '拿料中') pickupNode = node;
+        if (!dropNode && node.turn === 'take' && node.label === '放料中') dropNode = node;
+    }
+
+    if (pickupNode) {
+        PICKUP_HOME_POS.set(pickupNode.lx + 0.1, 0.18, pickupNode.lz + 0.22);
+    } else {
+        PICKUP_HOME_POS.set(1.1, 0.18, 5.22);
+    }
+
+    if (dropNode) {
+        PICKUP_DROP_POS.set(dropNode.x - 0.7, PICKUP_HOME_POS.y, dropNode.z + 0.58);
+    } else {
+        PICKUP_DROP_POS.set(-2.5, PICKUP_HOME_POS.y, 5.08);
+    }
+
+    grabSocket = app.root.findByName('GrabSocket_L');
+    if (!grabSocket) {
+        grabSocket = new pc.Entity('GrabSocket_L');
+        sceneRoot.addChild(grabSocket);
+    }
+
+    updateGrabSocketPose();
+    if (grabSocket) {
+        const handRaisedItemY = grabSocket.getPosition().y + pickupLocalPos.y + 0.45;
+        PICKUP_HOME_POS.y = handRaisedItemY;
+        PICKUP_DROP_POS.y = handRaisedItemY;
+    }
+
+    ensurePickupSelectionFx();
+    setPickupSelectionFxMode('default');
+    setPickupSelectionFxEnabled(true);
+};
 
 const resetPickupToHomeState = () => {
     sceneRoot.addChild(pickupItem);
@@ -456,14 +652,23 @@ const resetPickupToHomeState = () => {
     heldItem = null;
     putItemActive = false;
     putItemTime = 0;
+    takeActionDone = false;
+    pickupGlowTime = 0;
+    setPickupSelectionFxMode('default');
+    setPickupSelectionFxEnabled(true);
 };
 
 const attachPickupItemToRobot = () => {
-    player.addChild(pickupItem);
-    pickupItem.setLocalPosition(0.22, 1.05, 0.12);
-    pickupItem.setLocalEulerAngles(90, 0, 0);
-    pickupItem.setLocalScale(pickupLocalScale);
+    if (!grabSocket) return;
+
+    putItemActive = false;
+    putItemTime = 0;
+    updateGrabSocketPose();
+    grabSocket.addChild(pickupItem);
     heldItem = pickupItem;
+    setPickupSelectionFxMode('default');
+    setPickupSelectionFxEnabled(false);
+    syncHeldItemPose();
 };
 
 const detachPickupItemToDropZone = () => {
@@ -472,6 +677,8 @@ const detachPickupItemToDropZone = () => {
     pickupItem.setEulerAngles(90, 0, 0);
     pickupItem.setLocalScale(pickupLocalScale);
     heldItem = null;
+    setPickupSelectionFxMode('default');
+    setPickupSelectionFxEnabled(true);
 };
 
 const handleTakeAction = (node) => {
@@ -495,6 +702,9 @@ const startPutItemAction = () => {
     heldItem = null;
     putItemActive = true;
     putItemTime = 0;
+    pickupGlowTime = 0;
+    setPickupSelectionFxMode('putItem');
+    setPickupSelectionFxEnabled(true);
 };
 
 const updatePutItemAction = (dt) => {
@@ -531,11 +741,11 @@ const updatePutItemAction = (dt) => {
 
     if (progress >= 1) {
         putItemActive = false;
+        pickupGlowTime = 0;
+        setPickupSelectionFxEnabled(false);
         attachPickupItemToRobot();
     }
 };
-
-resetPickupToHomeState();
 
 // Path data from original robotPathMove
 const path = [
