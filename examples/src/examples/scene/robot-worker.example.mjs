@@ -85,7 +85,10 @@ app.scene.skyboxIntensity = 1;
 app.scene.envAtlas = assets.sky.resource;
 app.systems.rigidbody?.gravity.set(0, -9.8, 0);
 
-const light = new pc.Entity('light');
+const sceneRoot = new pc.Entity('SceneRoot');
+app.root.addChild(sceneRoot);
+
+const light = new pc.Entity('Light');
 light.addComponent('light', {
     type: 'directional',
     castShadows: true,
@@ -97,11 +100,11 @@ light.addComponent('light', {
 });
 light.setPosition(2, 2, -2);
 light.setLocalEulerAngles(45, -35, 0);
-app.root.addChild(light);
+sceneRoot.addChild(light);
 
 const mapEntity = assets.map.resource.instantiateRenderEntity();
-mapEntity.setLocalPosition(0, 0, 0);
-app.root.addChild(mapEntity);
+mapEntity.name = 'sketchMap';
+sceneRoot.addChild(mapEntity);
 
 const modelBounds = new pc.BoundingBox();
 mapEntity.forEach((e) => {
@@ -115,7 +118,7 @@ const ground = new pc.Entity('GroundEntity');
 ground.addComponent('collision', { type: 'box', halfExtents: new pc.Vec3(hs.x, 0.25, hs.z) });
 ground.addComponent('rigidbody', { type: 'static' });
 ground.setPosition(c.x, c.y - hs.y - 0.25, c.z);
-app.root.addChild(ground);
+sceneRoot.addChild(ground);
 
 let leftDoor = null;
 let rightDoor = null;
@@ -125,19 +128,6 @@ mapEntity.forEach((e) => {
 });
 
 const doorInitZ = leftDoor ? leftDoor.getLocalPosition().z : -0.860;
-
-const doorLight = new pc.Entity('doorLight');
-doorLight.addComponent('light', {
-    type: 'spot',
-    color: new pc.Color(0.2, 0.6, 1),
-    intensity: 2,
-    range: 3,
-    innerConeAngle: 20,
-    outerConeAngle: 40
-});
-doorLight.setPosition(-0.226, 0.6, -0.86);
-doorLight.setLocalEulerAngles(90, 0, 0);
-app.root.addChild(doorLight);
 
 let screenEntity = null;
 mapEntity.forEach((e) => {
@@ -317,11 +307,10 @@ robotRenderEntity.setLocalEulerAngles(90, 0, 0);
 const billboard = new pc.Entity('Billboard');
 const labelPlane = new pc.Entity('labelPlane');
 labelPlane.addComponent('render', { type: 'plane' });
-labelPlane.setLocalPosition(0, 3.399, 0);
+labelPlane.setLocalPosition(0, 2.266, 0);
 labelPlane.setLocalEulerAngles(90, 90, 0);
-labelPlane.setLocalScale(0.75, 0.75, 0.75);
+labelPlane.setLocalScale(0.5, 0.5, 0.5);
 billboard.addChild(labelPlane);
-app.root.addChild(billboard);
 
 const labelCanvas = document.createElement('canvas');
 labelCanvas.width = 256;
@@ -386,13 +375,13 @@ const updateLabelText = (text) => {
 
 updateLabelText('工作中');
 
-const playerEntity = new pc.Entity('RobotWorker');
-playerEntity.addChild(robotRenderEntity);
-playerEntity.setLocalPosition(1.5, 0.061, 0);
-playerEntity.setLocalScale(1.5, 1.5, 1.5);
-app.root.addChild(playerEntity);
-
-playerEntity.addComponent('anim', { activate: true });
+const player = new pc.Entity('player');
+player.setLocalPosition(1.5, 0.061, 0);
+player.setLocalScale(1.5, 1.5, 1.5);
+player.addChild(robotRenderEntity);
+player.addChild(billboard);
+player.addComponent('anim', { activate: true });
+sceneRoot.addChild(player);
 
 const animStateGraphData = {
     layers: [{
@@ -419,14 +408,14 @@ const animStateGraphData = {
     }
 };
 
-playerEntity.anim.loadStateGraph(animStateGraphData);
-const baseLayer = playerEntity.anim.baseLayer;
+player.anim.loadStateGraph(animStateGraphData);
+const baseLayer = player.anim.baseLayer;
 baseLayer.assignAnimation('Idle', assets.idleAnim.resource.animations[0].resource);
 baseLayer.assignAnimation('Walk', assets.walkAnim.resource.animations[0].resource);
 baseLayer.assignAnimation('Take', assets.takeAnim.resource.animations[0].resource);
 baseLayer.assignAnimation('Put', assets.putAnim.resource.animations[0].resource);
 
-const setStatus = v => playerEntity.anim.setInteger('playerStatus', v);
+const setStatus = v => player.anim.setInteger('playerStatus', v);
 
 // Path data from original robotPathMove
 const path = [
@@ -509,7 +498,7 @@ const applyRotation = (dt) => {
     currentAngle += limitedDelta;
 
     // Apply rotation to the player entity (Y only, preserve X/Z for child model)
-    playerEntity.setLocalEulerAngles(0, currentAngle, 0);
+    player.setLocalEulerAngles(0, currentAngle, 0);
 };
 
 const updateDoors = (dt) => {
@@ -526,7 +515,6 @@ const updateDoors = (dt) => {
         rightDoor.setLocalPosition(p.x, p.y, doorInitZ - doorProgress * 0.8);
     }
 
-    doorLight.light.intensity = 2 + doorProgress * 3;
     if (doorProgress >= 1 && doorDir > 0) doorDir = 0;
 };
 
@@ -546,14 +534,11 @@ const updateLabelFacingForThirdPerson = () => {
     if (Math.abs(dx) <= 1e-4 && Math.abs(dz) <= 1e-4) return;
 
     const yaw = Math.atan2(dx, dz) * 180 / Math.PI;
-    labelPlane.setLocalEulerAngles(90, yaw, 0);
+    labelPlane.setLocalEulerAngles(90, yaw - currentAngle, 0);
 };
 
 app.on('update', (dt) => {
     updateDoors(dt);
-
-    // Follow robot position
-    billboard.setPosition(playerEntity.getPosition());
 
     // Billboard: make label face camera
     updateLabelFacingForThirdPerson();
@@ -570,7 +555,7 @@ app.on('update', (dt) => {
     updateLabelText(node.label);
 
     // Skip consecutive same-position empty turn nodes when already at position
-    const pos = playerEntity.getPosition();
+    const pos = player.getPosition();
     while (node && node.turn === '' && pathIdx + 1 < path.length) {
         const samePoint = Math.abs(node.x - pos.x) <= ARRIVE_DIST && Math.abs(node.z - pos.z) <= ARRIVE_DIST;
         if (!samePoint) break;
@@ -662,7 +647,7 @@ app.on('update', (dt) => {
         if (!nextNode || nextNode.turn !== '') {
             currentSpeed = 0;
         }
-        playerEntity.setPosition(node.x, ROBOT_Y, node.z);
+        player.setPosition(node.x, ROBOT_Y, node.z);
         pathIdx++;
         return;
     }
@@ -692,7 +677,7 @@ app.on('update', (dt) => {
     let step = currentSpeed * dt;
     if (step > dist) step = dist;
 
-    playerEntity.setPosition(pos.x + ndx * step, ROBOT_Y, pos.z + ndz * step);
+    player.setPosition(pos.x + ndx * step, ROBOT_Y, pos.z + ndz * step);
     applyRotation(dt);
 });
 
