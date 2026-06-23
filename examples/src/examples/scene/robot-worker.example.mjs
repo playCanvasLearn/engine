@@ -127,12 +127,15 @@ mapEntity.forEach((e) => {
     if (e.name.indexOf('右侧门') !== -1) rightDoor = e;
 });
 
-const doorInitZ = leftDoor ? leftDoor.getLocalPosition().z : -0.860;
+const leftDoorInitZ = leftDoor ? leftDoor.getLocalPosition().z : -0.860;
+const rightDoorInitZ = rightDoor ? rightDoor.getLocalPosition().z : -0.860;
 
 let screenEntity = null;
 mapEntity.forEach((e) => {
     if (e.name === '屏幕') screenEntity = e;
 });
+
+let updateChartTitle = null;
 
 if (screenEntity) {
     const renderComp = screenEntity.render;
@@ -273,6 +276,7 @@ if (screenEntity) {
             chartTex.setSource(chartCanvas);
             chartTex.upload();
         };
+        updateChartTitle = updateChartOption;
 
         // First render after a short delay
         setTimeout(() => {
@@ -417,6 +421,122 @@ baseLayer.assignAnimation('Put', assets.putAnim.resource.animations[0].resource)
 
 const setStatus = v => player.anim.setInteger('playerStatus', v);
 
+const pickupMaterial = new pc.StandardMaterial();
+pickupMaterial.diffuse.set(0.85, 0.55, 0.16);
+pickupMaterial.emissive.set(0.2, 0.09, 0.02);
+pickupMaterial.update();
+
+const pickupItem = new pc.Entity('PickupItem');
+pickupItem.addComponent('model', { type: 'cylinder', castShadows: true, receiveShadows: true });
+pickupItem.model.material = pickupMaterial;
+pickupItem.setLocalScale(0.18, 0.12, 0.18);
+sceneRoot.addChild(pickupItem);
+
+const PICKUP_HOME_POS = new pc.Vec3(1.0, 0.2, 5.2);
+const PICKUP_DROP_POS = new pc.Vec3(-1.3, 0.2, 4.5);
+const pickupLocalScale = pickupItem.getLocalScale().clone();
+const putItemStartPos = new pc.Vec3();
+const putItemMidPos = new pc.Vec3();
+const putItemEndPos = new pc.Vec3();
+const putItemEuler = new pc.Vec3(90, 0, 0);
+const PUT_ITEM_RISE_HEIGHT = 0.45;
+const PUT_ITEM_MOVE_DISTANCE = 0.9;
+const PUT_ITEM_DURATION = 1.8;
+const PUT_ITEM_ROTATE_TURNS = 2;
+
+let heldItem = null;
+let putItemActive = false;
+let putItemTime = 0;
+
+const resetPickupToHomeState = () => {
+    sceneRoot.addChild(pickupItem);
+    pickupItem.setPosition(PICKUP_HOME_POS);
+    pickupItem.setEulerAngles(90, 0, 0);
+    pickupItem.setLocalScale(pickupLocalScale);
+    heldItem = null;
+    putItemActive = false;
+    putItemTime = 0;
+};
+
+const attachPickupItemToRobot = () => {
+    player.addChild(pickupItem);
+    pickupItem.setLocalPosition(0.22, 1.05, 0.12);
+    pickupItem.setLocalEulerAngles(90, 0, 0);
+    pickupItem.setLocalScale(pickupLocalScale);
+    heldItem = pickupItem;
+};
+
+const detachPickupItemToDropZone = () => {
+    sceneRoot.addChild(pickupItem);
+    pickupItem.setPosition(PICKUP_DROP_POS);
+    pickupItem.setEulerAngles(90, 0, 0);
+    pickupItem.setLocalScale(pickupLocalScale);
+    heldItem = null;
+};
+
+const handleTakeAction = (node) => {
+    if (node.label === '拿料中' && !heldItem) {
+        attachPickupItemToRobot();
+    } else if (node.label === '放料中' && heldItem) {
+        detachPickupItemToDropZone();
+    }
+};
+
+const startPutItemAction = () => {
+    sceneRoot.addChild(pickupItem);
+    putItemStartPos.set(-0.4, 1.8, -0.6);
+    putItemMidPos.copy(putItemStartPos);
+    putItemMidPos.y += PUT_ITEM_RISE_HEIGHT;
+    putItemEndPos.copy(putItemMidPos);
+    putItemEndPos.x -= PUT_ITEM_MOVE_DISTANCE;
+    pickupItem.setPosition(putItemStartPos);
+    pickupItem.setEulerAngles(putItemEuler);
+    pickupItem.setLocalScale(pickupLocalScale);
+    heldItem = null;
+    putItemActive = true;
+    putItemTime = 0;
+};
+
+const updatePutItemAction = (dt) => {
+    if (!putItemActive) return;
+
+    putItemTime += dt;
+    const progress = pc.math.clamp(putItemTime / PUT_ITEM_DURATION, 0, 1);
+    const riseRatio = 0.4;
+    let eased;
+    let x;
+    let y;
+    let z;
+
+    if (progress < riseRatio) {
+        eased = progress / riseRatio;
+        eased = eased * eased * (3 - 2 * eased);
+        x = pc.math.lerp(putItemStartPos.x, putItemMidPos.x, eased);
+        y = pc.math.lerp(putItemStartPos.y, putItemMidPos.y, eased);
+        z = pc.math.lerp(putItemStartPos.z, putItemMidPos.z, eased);
+    } else {
+        eased = (progress - riseRatio) / (1 - riseRatio);
+        eased = eased * eased * (3 - 2 * eased);
+        x = pc.math.lerp(putItemMidPos.x, putItemEndPos.x, eased);
+        y = pc.math.lerp(putItemMidPos.y, putItemEndPos.y, eased);
+        z = pc.math.lerp(putItemMidPos.z, putItemEndPos.z, eased);
+    }
+
+    pickupItem.setPosition(x, y, z);
+    pickupItem.setEulerAngles(
+        putItemEuler.x,
+        putItemEuler.y + 360 * PUT_ITEM_ROTATE_TURNS * progress,
+        putItemEuler.z
+    );
+
+    if (progress >= 1) {
+        putItemActive = false;
+        attachPickupItemToRobot();
+    }
+};
+
+resetPickupToHomeState();
+
 // Path data from original robotPathMove
 const path = [
     { label: '去拿料', turn: '', x: 1.8, z: 4.5, lx: 1.8, lz: 5.2 },
@@ -430,14 +550,28 @@ const path = [
     { label: '加工中', turn: 'pause', x: 0.6, z: -0.9, lx: 0.2, lz: -0.9 },
     { label: '加工中', turn: 'openDoor', x: 0.6, z: -0.9, lx: 0.2, lz: -0.9 },
     { label: '加工中', turn: 'put', x: 0.6, z: -0.9, lx: 0.2, lz: -0.9 },
+    { label: '加工中', turn: 'putItem', x: 0.6, z: -0.9, lx: 0.2, lz: -0.9 },
     { label: '加工中', turn: 'pause', x: 0.6, z: -0.9, lx: 0.2, lz: -0.9 },
     { label: '加工中', turn: 'closeDoor', x: 0.6, z: -0.9, lx: 0.2, lz: -0.9 },
     { label: '去检测', turn: '', x: 0.6, z: -6.4, lx: 0.6, lz: -6.5 },
     { label: '检测中', turn: '', x: 0.4, z: -6.5, lx: -2, lz: -6.5 },
     { label: '检测中', turn: 'pause', x: 0.4, z: -6.5, lx: -2, lz: -6.5 },
+    { label: '不合格', turn: 'pause', x: -0.4, z: -6.5, lx: -2, lz: -6.5 },
+    { label: '去加工', turn: '', x: 0.4, z: -0.9, lx: 0.4, lz: -0.9 },
+    { label: '加工中', turn: '', x: 0.6, z: -0.9, lx: -2, lz: -0.9 },
+    { label: '加工中', turn: 'pause', x: 0.6, z: -0.9, lx: -2, lz: -0.9 },
+    { label: '加工中', turn: 'openDoor', x: 0.6, z: -0.9, lx: -2, lz: -0.9 },
+    { label: '加工中', turn: 'put', x: 0.6, z: -0.9, lx: -2, lz: -0.9 },
+    { label: '加工中', turn: 'putItem', x: 0.6, z: -0.9, lx: 0.2, lz: -0.9 },
+    { label: '加工中', turn: 'pause', x: 0.6, z: -0.9, lx: -2, lz: -0.9 },
+    { label: '加工中', turn: 'closeDoor', x: 0.6, z: -0.9, lx: -2, lz: -0.9 },
+    { label: '去检测', turn: '', x: 0.4, z: -6.4, lx: 0.4, lz: -6.5 },
+    { label: '检测中', turn: '', x: 0.4, z: -6.5, lx: -2, lz: -6.5 },
+    { label: '检测中', turn: 'pause', x: 0.4, z: -6.5, lx: -2, lz: -6.5 },
     { label: '合格', turn: 'pause', x: 0.1, z: -6.5, lx: -2, lz: -6.5 },
     { label: '去放料', turn: '', x: 0.4, z: 2.7, lx: 0.4, lz: 2.7 },
     { label: '去放料', turn: '', x: 0.4, z: 2.7, lx: -1, lz: 2.7 },
+    { label: '去放料', turn: '', x: -1, z: 2.7, lx: -1, lz: 2.7 },
     { label: '去放料', turn: '', x: -1, z: 2.7, lx: -1, lz: 2.7 },
     { label: '去放料', turn: '', x: -1, z: 2.7, lx: -1.2, lz: 4.5 },
     { label: '去放料', turn: '', x: -1.2, z: 4.5, lx: -1.2, lz: 4.5 },
@@ -465,6 +599,8 @@ let currentAngle = 0;
 let doorProgress = 0;
 let doorDir = 0;
 let takeActionDone = false;
+let activeActionKey = '';
+let lastLabel = '';
 
 const startCycle = () => {
     pathIdx = 0;
@@ -473,7 +609,27 @@ const startCycle = () => {
     doorProgress = 0;
     doorDir = 0;
     takeActionDone = false;
+    activeActionKey = '';
+    lastLabel = '';
     currentAngle = 0;
+    resetPickupToHomeState();
+};
+
+const beginSpecialAction = (node) => {
+    const actionKey = `${pathIdx}:${node.turn}`;
+    if (activeActionKey === actionKey) return false;
+
+    activeActionKey = actionKey;
+    pauseTimer = 0;
+    takeActionDone = false;
+    return true;
+};
+
+const finishSpecialAction = () => {
+    pauseTimer = 0;
+    takeActionDone = false;
+    activeActionKey = '';
+    pathIdx++;
 };
 
 const computeTargetAngle = (fromX, fromZ, toX, toZ) => {
@@ -508,14 +664,15 @@ const updateDoors = (dt) => {
 
     if (leftDoor) {
         const p = leftDoor.getLocalPosition();
-        leftDoor.setLocalPosition(p.x, p.y, doorInitZ + doorProgress * 0.8);
+        leftDoor.setLocalPosition(p.x, p.y, leftDoorInitZ + doorProgress * 0.8);
     }
     if (rightDoor) {
         const p = rightDoor.getLocalPosition();
-        rightDoor.setLocalPosition(p.x, p.y, doorInitZ - doorProgress * 0.8);
+        rightDoor.setLocalPosition(p.x, p.y, rightDoorInitZ - doorProgress * 0.8);
     }
 
     if (doorProgress >= 1 && doorDir > 0) doorDir = 0;
+    if (doorProgress <= 0 && doorDir < 0) doorDir = 0;
 };
 
 let cameraEntity = null;
@@ -539,20 +696,28 @@ const updateLabelFacingForThirdPerson = () => {
 
 app.on('update', (dt) => {
     updateDoors(dt);
+    updatePutItemAction(dt);
 
     // Billboard: make label face camera
     updateLabelFacingForThirdPerson();
 
-    if (window.__robotPauseAnimation) return;
-
-    if (pathIdx >= path.length) {
-        setStatus(0);
-        updateLabelText('任务完成');
+    if (window.__robotPauseAnimation) {
+        currentSpeed = 0;
+        setStatus(2);
         return;
     }
 
+    if (pathIdx >= path.length) {
+        pathIdx = 0;
+        startCycle();
+    }
+
     let node = path[pathIdx];
-    updateLabelText(node.label);
+    if (node.label !== lastLabel) {
+        lastLabel = node.label;
+        updateLabelText(node.label);
+        if (updateChartTitle) updateChartTitle(node.label);
+    }
 
     // Skip consecutive same-position empty turn nodes when already at position
     const pos = player.getPosition();
@@ -577,49 +742,63 @@ app.on('update', (dt) => {
 
     if (node.turn === 'pause') {
         currentSpeed = 0;
-        setStatus(0);
+        if (beginSpecialAction(node)) {
+            setStatus(2);
+        }
         applyRotation(dt);
         pauseTimer += dt;
         if (pauseTimer >= PAUSE_TIME) {
-            pauseTimer = 0;
-            pathIdx++;
+            finishSpecialAction();
         }
         return;
     }
 
     if (node.turn === 'take') {
         currentSpeed = 0;
-        setStatus(3);
+        if (beginSpecialAction(node)) {
+            setStatus(3);
+        }
         applyRotation(dt);
         pauseTimer += dt;
 
-        if (!takeActionDone && pauseTimer >= 1.0) {
+        if (!takeActionDone && pauseTimer >= 2.8) {
+            handleTakeAction(node);
             takeActionDone = true;
         }
 
         if (pauseTimer >= 3.0) {
-            pauseTimer = 0;
-            takeActionDone = false;
-            pathIdx++;
+            finishSpecialAction();
         }
         return;
     }
 
     if (node.turn === 'put') {
         currentSpeed = 0;
-        setStatus(4);
+        if (beginSpecialAction(node)) {
+            setStatus(4);
+        }
         applyRotation(dt);
         pauseTimer += dt;
         if (pauseTimer >= PAUSE_TIME) {
-            pauseTimer = 0;
-            pathIdx++;
+            finishSpecialAction();
         }
+        return;
+    }
+
+    if (node.turn === 'putItem') {
+        currentSpeed = 0;
+        setStatus(2);
+        applyRotation(dt);
+        if (beginSpecialAction(node)) {
+            startPutItemAction();
+        }
+        finishSpecialAction();
         return;
     }
 
     if (node.turn === 'openDoor') {
         currentSpeed = 0;
-        setStatus(0);
+        setStatus(2);
         applyRotation(dt);
         if (doorProgress >= 1 && doorDir === 0) {
             pathIdx++;
@@ -631,6 +810,7 @@ app.on('update', (dt) => {
 
     if (node.turn === 'closeDoor') {
         currentSpeed = 0;
+        setStatus(2);
         applyRotation(dt);
         doorDir = -1;
         pathIdx++;
