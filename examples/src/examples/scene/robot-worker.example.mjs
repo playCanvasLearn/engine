@@ -33,7 +33,7 @@ await new Promise((resolve, reject) => {
 const assets = {
     map: new pc.Asset('map', 'container', { url: './assets/scene/robot-worker/sketchMap.glb' }),
     robot: new pc.Asset('robot', 'container', { url: './assets/scene/robot-worker/animation3.glb' }),
-    idleAnim: new pc.Asset('idleAnim', 'container', { url: './assets/scene/robot-worker/animations/idle.glb' }),
+    idleAnim: new pc.Asset('idleAnim', 'container', { url: './assets/scene/robot-worker/animations/stop.glb' }),
     walkAnim: new pc.Asset('walkAnim', 'container', { url: './assets/scene/robot-worker/animations/walk.glb' }),
     takeAnim: new pc.Asset('takeAnim', 'container', { url: './assets/scene/robot-worker/animations/take.glb' }),
     putAnim: new pc.Asset('putAnim', 'container', { url: './assets/scene/robot-worker/animations/put.glb' }),
@@ -404,8 +404,12 @@ const animStateGraphData = {
             { from: 'Idle', to: 'Take', time: 0.1, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 3 }] },
             { from: 'Idle', to: 'Put', time: 0.1, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 4 }] },
             { from: 'Walk', to: 'Idle', time: 0.15, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 2 }] },
+            { from: 'Walk', to: 'Take', time: 0.1, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 3 }] },
+            { from: 'Walk', to: 'Put', time: 0.1, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 4 }] },
             { from: 'Take', to: 'Idle', time: 0.2, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 2 }] },
-            { from: 'Put', to: 'Idle', time: 0.2, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 2 }] }
+            { from: 'Take', to: 'Walk', time: 0.2, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 1 }] },
+            { from: 'Put', to: 'Idle', time: 0.2, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 2 }] },
+            { from: 'Put', to: 'Walk', time: 0.2, priority: 0, conditions: [{ parameterName: 'playerStatus', predicate: pc.ANIM_EQUAL_TO, value: 1 }] }
         ]
     }],
     parameters: {
@@ -420,7 +424,12 @@ baseLayer.assignAnimation('Walk', assets.walkAnim.resource.animations[0].resourc
 baseLayer.assignAnimation('Take', assets.takeAnim.resource.animations[0].resource);
 baseLayer.assignAnimation('Put', assets.putAnim.resource.animations[0].resource);
 
-const setStatus = v => player.anim.setInteger('playerStatus', v);
+let _playerStatus = 0;
+const setStatus = (v) => {
+    if (_playerStatus === v) return;
+    _playerStatus = v;
+    player.anim.setInteger('playerStatus', v);
+};
 
 const pickupMaterial = new pc.StandardMaterial();
 pickupMaterial.diffuse.set(0.65, 0.65, 0.65);
