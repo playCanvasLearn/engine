@@ -197,12 +197,12 @@ export const menuOverrides = {
                 },
                 "robot-worker": {
                     "label": "机器人工作者",
-                    "hidden": false,
+                    "hidden": true,
                     "order": 90
                 },
                 "physics-ai": {
                     "label": "车间异常模拟",
-                    "hidden": false,
+                    "hidden": true,
                     "order": 130
                 }
             }
