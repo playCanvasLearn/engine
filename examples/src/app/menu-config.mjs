@@ -202,7 +202,7 @@ export const menuOverrides = {
                 },
                 "physics-ai": {
                     "label": "车间异常模拟",
-                    "hidden": true,
+                    "hidden": false,
                     "order": 130
                 }
             }
