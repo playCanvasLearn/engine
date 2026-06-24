@@ -196,8 +196,8 @@ export const menuOverrides = {
                     "order": 120
                 },
                 "robot-worker": {
-                    "label": "机器人工作者",
-                    "hidden": true,
+                    "label": "MES机器人工作者",
+                    "hidden": false,
                     "order": 90
                 },
                 "physics-ai": {

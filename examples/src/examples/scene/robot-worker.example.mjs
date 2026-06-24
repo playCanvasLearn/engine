@@ -458,6 +458,26 @@ let pickupGlowTime = 0;
 let putItemActive = false;
 let putItemTime = 0;
 
+// Exit door FX
+let exitDoorTargets = [];
+let exitDoorMaterials = [];
+const exitDoorCenter = new pc.Vec3();
+let exitDoorTime = 0;
+let exitDoorMoveAxis = 'x';
+let exitSignEntity = null;
+let exitSignMaterial = null;
+let exitSignTexture = null;
+let exitSignCanvas = null;
+const exitSignBasePos = new pc.Vec3();
+let exitSignHalfWidth = 0.5;
+let exitSignHalfHeight = 0.15;
+let exitSignPulseTime = 0;
+let exitSignClickTime = 0;
+let exitDoorClickTime = 0;
+let isExitDoorHovered = false;
+let exitDoorHoverLerp = 0;
+let exitPopupRoot = null;
+
 const collectMeshInstances = (root, out) => {
     if (!root) return;
 
@@ -747,6 +767,346 @@ const updatePutItemAction = (dt) => {
     }
 };
 
+// ===== Exit Door FX =====
+const EXIT_DOOR_OPEN_DIST = 0.18;
+const EXIT_DOOR_SPEED = 1.4;
+
+const initExitDoorFx = () => {
+    const nameSet = { Mesh_153: true, Mesh_154: true, Mesh_155: true, Mesh_156: true };
+    const nodes = [];
+    const mis = [];
+
+    app.root.forEach((node) => {
+        const comp = node.render || node.model;
+        if (!comp?.meshInstances?.length) return;
+        for (let i = 0; i < comp.meshInstances.length; i++) {
+            const mi = comp.meshInstances[i];
+            const nodeName = mi?.node?.name || '';
+            const meshName = mi?.mesh?.name || '';
+            if (!nameSet[nodeName] && !nameSet[meshName]) continue;
+            mis.push(mi);
+            if (mi.node && nodes.indexOf(mi.node) === -1) nodes.push(mi.node);
+        }
+    });
+
+    if (!nodes.length) return;
+
+    exitDoorTargets = [];
+    exitDoorMaterials = [];
+    exitDoorCenter.set(0, 0, 0);
+
+    let minX = Infinity, maxX = -Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+
+    for (let i = 0; i < nodes.length; i++) {
+        const wp = nodes[i].getPosition().clone();
+        exitDoorCenter.add(wp);
+        if (wp.x < minX) minX = wp.x;
+        if (wp.x > maxX) maxX = wp.x;
+        if (wp.y > maxY) maxY = wp.y;
+        if (wp.z < minZ) minZ = wp.z;
+        if (wp.z > maxZ) maxZ = wp.z;
+    }
+
+    exitDoorCenter.scale(1 / nodes.length);
+    exitDoorMoveAxis = (maxX - minX) >= (maxZ - minZ) ? 'x' : 'z';
+
+    for (let i = 0; i < nodes.length; i++) {
+        const dn = nodes[i];
+        const base = dn.getPosition().clone();
+        const delta = exitDoorMoveAxis === 'x' ? base.x - exitDoorCenter.x : base.z - exitDoorCenter.z;
+        const sign = delta >= 0 ? 1 : -1;
+        exitDoorTargets.push({ node: dn, baseWorldPos: base, sign: sign });
+    }
+
+    for (let i = 0; i < mis.length; i++) {
+        const mi = mis[i];
+        if (!mi?.material?.clone) continue;
+        const cloned = mi.material.clone();
+        cloned.emissive?.set(0, 1, 0.35);
+        if (cloned.emissiveIntensity !== undefined) cloned.emissiveIntensity = 1.2;
+        cloned.update?.();
+        mi.material = cloned;
+        exitDoorMaterials.push(cloned);
+    }
+
+    ensureExitSign(maxY, minX, maxX, minZ, maxZ);
+    ensureExitPopupUi();
+};
+
+const updateExitDoorFx = (dt) => {
+    if (!exitDoorTargets.length) return;
+
+    exitDoorTime += dt * EXIT_DOOR_SPEED;
+    exitDoorClickTime = Math.max(0, exitDoorClickTime - dt);
+    exitDoorHoverLerp += ((isExitDoorHovered ? 1 : 0) - exitDoorHoverLerp) * Math.min(1, dt * 10);
+
+    const pulse = 0.5 + 0.5 * Math.sin(exitDoorTime);
+    const openOffset = EXIT_DOOR_OPEN_DIST * pulse;
+    const clickBoost = exitDoorClickTime > 0 ? exitDoorClickTime / 0.25 : 0;
+    const hoverBoost = exitDoorHoverLerp;
+    const emissiveIntensity = 0.55 + pulse * 0.85 + hoverBoost * 2.4 + clickBoost * 0.55;
+    const emissiveR = 0 + hoverBoost * 0.30;
+    const emissiveG = 0.55 + hoverBoost * 0.45;
+    const emissiveB = 0.18 + hoverBoost * 0.50;
+
+    for (let i = 0; i < exitDoorTargets.length; i++) {
+        const t = exitDoorTargets[i];
+        const b = t.baseWorldPos;
+        const x = b.x + (exitDoorMoveAxis === 'x' ? t.sign * openOffset : 0);
+        const y = b.y;
+        const z = b.z + (exitDoorMoveAxis === 'z' ? t.sign * openOffset : 0);
+        t.node.setPosition(x, y, z);
+    }
+
+    for (let i = 0; i < exitDoorMaterials.length; i++) {
+        exitDoorMaterials[i].emissive.set(emissiveR, emissiveG, emissiveB);
+        exitDoorMaterials[i].emissiveIntensity = emissiveIntensity;
+        exitDoorMaterials[i].update();
+    }
+
+    updateExitSignFx(dt);
+};
+
+// ===== EXIT Sign =====
+const drawExitSignCanvas = (ctx, width, height) => {
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = 'rgba(4, 22, 10, 0.70)';
+    ctx.strokeStyle = 'rgba(53, 255, 148, 0.95)';
+    ctx.lineWidth = 12;
+
+    const x = 28, y = 28, w = width - 56, h = height - 56, r = 24;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowColor = 'rgba(53,255,148,0.85)';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = 'rgba(230, 255, 240, 1)';
+    ctx.font = 'bold 118px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('EXIT', width * 0.5, height * 0.54);
+    ctx.shadowBlur = 0;
+};
+
+const ensureExitSign = (maxY, minX, maxX, minZ, maxZ) => {
+    if (exitSignEntity) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    canvas.style.display = 'none';
+    document.body.appendChild(canvas);
+    exitSignCanvas = canvas;
+
+    const ctx = canvas.getContext('2d');
+    drawExitSignCanvas(ctx, canvas.width, canvas.height);
+
+    const tex = new pc.Texture(device, {
+        format: pc.PIXELFORMAT_R8_G8_B8_A8,
+        autoMipmap: false,
+        minFilter: pc.FILTER_LINEAR,
+        magFilter: pc.FILTER_LINEAR,
+        addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+        addressV: pc.ADDRESS_CLAMP_TO_EDGE
+    });
+    tex.setSource(canvas);
+    exitSignTexture = tex;
+
+    const mat = new pc.StandardMaterial();
+    mat.name = 'ExitSignMaterial';
+    mat.diffuseMap = tex;
+    mat.emissiveMap = tex;
+    mat.opacityMap = tex;
+    mat.opacityMapChannel = 'a';
+    mat.diffuse.set(1, 1, 1);
+    mat.emissive.set(0.1, 1.0, 0.4);
+    mat.emissiveIntensity = 1.3;
+    mat.opacity = 1;
+    mat.blendType = pc.BLEND_NORMAL;
+    mat.useLighting = false;
+    mat.depthWrite = false;
+    mat.cull = pc.CULLFACE_NONE;
+    mat.update();
+    exitSignMaterial = mat;
+
+    const sign = new pc.Entity('ExitSign');
+    sign.addComponent('model', {
+        type: 'plane',
+        castShadows: false,
+        receiveShadows: false
+    });
+    sign.model.material = mat;
+
+    const span = exitDoorMoveAxis === 'x' ? (maxX - minX) : (maxZ - minZ);
+    const signWidth = Math.max(0.75, span * 0.75);
+    const signHeight = 0.24;
+    exitSignHalfWidth = signWidth * 0.5;
+    exitSignHalfHeight = signHeight * 0.5;
+
+    exitSignBasePos.set(exitDoorCenter.x, maxY + 0.42, exitDoorCenter.z);
+    sign.setPosition(exitSignBasePos);
+    sign.setEulerAngles(90, 90, 0);
+    sign.setLocalScale(signWidth, 1, signHeight);
+
+    sceneRoot.addChild(sign);
+    exitSignEntity = sign;
+};
+
+const updateExitSignFx = (dt) => {
+    if (!exitSignEntity || !exitSignMaterial) return;
+
+    exitSignPulseTime += dt;
+    exitSignClickTime = Math.max(0, exitSignClickTime - dt);
+
+    const basePulse = 0.5 + 0.5 * Math.sin(exitSignPulseTime * 2.8);
+    const clickBoost = exitSignClickTime > 0 ? exitSignClickTime / 0.25 : 0;
+    const scaleBoost = 1 + basePulse * 0.04 + clickBoost * 0.08;
+
+    exitSignEntity.setPosition(exitSignBasePos);
+    exitSignEntity.setLocalScale(
+        exitSignHalfWidth * 2 * scaleBoost,
+        1,
+        exitSignHalfHeight * 2 * scaleBoost
+    );
+
+    exitSignMaterial.emissiveIntensity = 1.3 + basePulse * 0.8 + clickBoost * 1.6;
+    exitSignMaterial.update();
+
+    if (exitSignTexture && exitSignCanvas) {
+        exitSignTexture.upload();
+    }
+};
+
+// ===== Exit Popup UI =====
+const ensureExitPopupUi = () => {
+    if (exitPopupRoot) return;
+
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.display = 'none';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.background = 'rgba(2, 6, 12, 0.58)';
+    overlay.style.backdropFilter = 'blur(8px)';
+    overlay.style.zIndex = '10020';
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'width:min(520px,calc(100vw - 32px));border-radius:22px;border:1px solid rgba(58,255,154,0.24);background:linear-gradient(180deg,rgba(13,24,21,0.97),rgba(8,14,17,0.98));box-shadow:0 24px 60px rgba(0,0,0,0.42);padding:22px 22px 18px 22px;color:rgba(235,245,240,0.96);font-family:Arial,sans-serif;backdrop-filter:blur(10px)';
+
+    const title = document.createElement('div');
+    title.textContent = '上海机床厂';
+    title.style.cssText = 'font-size:22px;font-weight:700;letter-spacing:0.6px;color:rgba(95,255,174,0.98)';
+
+    const desc = document.createElement('div');
+    desc.textContent = '上海机床厂始建于 1946 年，是中国大型精密磨床制造企业，在国内磨床行业长期处于领先地位。';
+    desc.style.cssText = 'margin-top:14px;font-size:14px;line-height:1.65;color:rgba(235,245,240,0.86)';
+
+    const sectionTitle = document.createElement('div');
+    sectionTitle.textContent = '核心产品：';
+    sectionTitle.style.cssText = 'margin-top:16px;font-size:15px;font-weight:700;color:rgba(235,245,240,0.96)';
+
+    const productList = document.createElement('div');
+    productList.style.cssText = 'margin-top:10px;display:grid;gap:10px';
+
+    const products = ['成型机床', '数控磨床', '重型机床'];
+    for (let i = 0; i < products.length; i++) {
+        const item = document.createElement('div');
+        item.textContent = products[i];
+        item.style.cssText = 'padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:rgba(235,245,240,0.92);font-size:14px';
+        productList.appendChild(item);
+    }
+
+    const contact = document.createElement('div');
+    contact.style.cssText = 'margin-top:18px;padding:14px 14px;border-radius:14px;background:rgba(58,255,154,0.08);border:1px solid rgba(58,255,154,0.12);line-height:1.75;font-size:14px;color:rgba(235,245,240,0.9)';
+    contact.innerHTML =
+        '<div style="font-weight:700;color:rgba(95,255,174,0.98);margin-bottom:6px;">总部地址</div>' +
+        '<div>上海市杨浦区军工路1146号</div>' +
+        '<div>服务热线：021-65494608</div>';
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:20px';
+
+    const buyBtn = document.createElement('button');
+    buyBtn.type = 'button';
+    buyBtn.textContent = '去购买';
+    buyBtn.style.cssText = 'height:40px;min-width:92px;padding:0 16px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;transition:transform 120ms ease,opacity 120ms ease;border:1px solid rgba(58,255,154,0.30);background:linear-gradient(180deg,rgba(58,255,154,0.26),rgba(58,255,154,0.12));color:rgba(228,255,240,0.98)';
+
+    const visitBtn = document.createElement('button');
+    visitBtn.type = 'button';
+    visitBtn.textContent = '去参观';
+    visitBtn.style.cssText = 'height:40px;min-width:92px;padding:0 16px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;transition:transform 120ms ease,opacity 120ms ease;border:1px solid rgba(84,170,255,0.30);background:linear-gradient(180deg,rgba(84,170,255,0.24),rgba(84,170,255,0.10));color:rgba(233,244,255,0.98)';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = '取消';
+    cancelBtn.style.cssText = 'height:40px;min-width:92px;padding:0 16px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;transition:transform 120ms ease,opacity 120ms ease;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(228,255,240,0.88)';
+
+    actions.appendChild(buyBtn);
+    actions.appendChild(visitBtn);
+    actions.appendChild(cancelBtn);
+    panel.appendChild(title);
+    panel.appendChild(desc);
+    panel.appendChild(sectionTitle);
+    panel.appendChild(productList);
+    panel.appendChild(contact);
+    panel.appendChild(actions);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    cancelBtn.addEventListener('click', () => { overlay.style.display = 'none'; });
+    buyBtn.addEventListener('click', () => { window.open('https://www.shanghai-electric.com/group/', '_blank'); });
+    visitBtn.addEventListener('click', () => { window.open('https://www.shanghai-electric.com/listed/cply/gyzb/znzzzb/index.shtml', '_blank'); });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.style.display = 'none'; });
+
+    exitPopupRoot = overlay;
+};
+
+const showExitPopup = () => {
+    if (exitPopupRoot) exitPopupRoot.style.display = 'flex';
+};
+
+const isPointerOnExitSign = (camera, screenX, screenY) => {
+    if (!exitSignEntity || !camera) return false;
+    const center = camera.worldToScreen(exitSignBasePos);
+    const rightWorld = exitSignEntity.right.clone().scale(exitSignHalfWidth);
+    const upWorld = exitSignEntity.up.clone().scale(exitSignHalfHeight);
+    const rightPoint = exitSignBasePos.clone().add(rightWorld);
+    const upPoint = exitSignBasePos.clone().add(upWorld);
+    const rightScreen = camera.worldToScreen(rightPoint);
+    const upScreen = camera.worldToScreen(upPoint);
+    const halfWidthPx = Math.max(28, Math.abs(rightScreen.x - center.x) + 12);
+    const halfHeightPx = Math.max(16, Math.abs(upScreen.y - center.y) + 10);
+    return Math.abs(screenX - center.x) <= halfWidthPx && Math.abs(screenY - center.y) <= halfHeightPx;
+};
+
+const isPointerOnExitDoor = (camera, screenX, screenY) => {
+    if (!camera || !exitDoorTargets.length) return false;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < exitDoorTargets.length; i++) {
+        const screen = camera.worldToScreen(exitDoorTargets[i].node.getPosition());
+        if (screen.x < minX) minX = screen.x;
+        if (screen.x > maxX) maxX = screen.x;
+        if (screen.y < minY) minY = screen.y;
+        if (screen.y > maxY) maxY = screen.y;
+    }
+    const padX = 70, padY = 120;
+    return screenX >= minX - padX && screenX <= maxX + padX && screenY >= minY - padY && screenY <= maxY + padY;
+};
+
 // Path data from original robotPathMove
 const path = [
     { label: '去拿料', turn: '', x: 1.8, z: 4.5, lx: 1.8, lz: 5.2 },
@@ -886,12 +1246,97 @@ const updateDoors = (dt) => {
 };
 
 let cameraEntity = null;
+
+// Camera follow temp vectors
+const _camForward = new pc.Vec3();
+const _camRight = new pc.Vec3();
+const _camPos = new pc.Vec3();
+const _lookPos = new pc.Vec3();
+const _eyePos = new pc.Vec3();
+const _tmpOffset = new pc.Vec3();
+const _moveDir = new pc.Vec3();
+
+let viewMode = 'fixed';
+window.__robotViewMode = viewMode;
+
+const getFacingForwardXZ = () => {
+    const facingEntity = player;
+    const lookDir = (lookDirCache && lookDirCache.lengthSq && lookDirCache.lengthSq() > 1e-6)
+        ? lookDirCache
+        : facingEntity.forward;
+    _camForward.set(lookDir.x, 0, lookDir.z);
+    if (_camForward.lengthSq() < 1e-6) {
+        const fb = player.forward;
+        _camForward.set(fb.x, 0, fb.z);
+    }
+    _camForward.normalize();
+    return facingEntity;
+};
+
+let lookDirCache = new pc.Vec3();
+
+const updateThirdPersonCamera = (p) => {
+    _camRight.cross(pc.Vec3.UP, _camForward).normalize();
+    const followBack = 6.75;
+    const followUp = 4.4;
+    const followRight = 0.55;
+    const lookAhead = 38.0;
+    const lookUp = -3.2;
+    _camPos.set(
+        p.x - _camForward.x * followBack + _camRight.x * followRight,
+        p.y + followUp,
+        p.z - _camForward.z * followBack + _camRight.z * followRight
+    );
+    _lookPos.set(
+        p.x + _camForward.x * lookAhead,
+        p.y + lookUp,
+        p.z + _camForward.z * lookAhead
+    );
+    cameraEntity.setPosition(_camPos);
+    cameraEntity.lookAt(_lookPos);
+};
+
+const updateFirstPersonCamera = (p) => {
+    _eyePos.set(p.x, p.y + 2.2, p.z);
+    _tmpOffset.copy(_camForward).scale(0.25);
+    _camPos.copy(_eyePos).add(_tmpOffset);
+    _moveDir.set(
+        (lookDirCache && lookDirCache.lengthSq && lookDirCache.lengthSq() > 1e-6) ? lookDirCache.x : _camForward.x,
+        0,
+        (lookDirCache && lookDirCache.lengthSq && lookDirCache.lengthSq() > 1e-6) ? lookDirCache.z : _camForward.z
+    ).normalize();
+    _tmpOffset.copy(_moveDir).scale(0.2);
+    _camPos.add(_tmpOffset);
+    _tmpOffset.copy(_camForward).scale(20.0);
+    _lookPos.copy(_camPos).add(_tmpOffset);
+    _lookPos.y += -1.2;
+    cameraEntity.setPosition(_camPos);
+    cameraEntity.lookAt(_lookPos);
+};
+
+const setViewMode = (mode) => {
+    if (mode === viewMode) return;
+    viewMode = mode;
+    window.__robotViewMode = mode;
+    if (cc) cc.enabled = (mode === 'fixed');
+    if (mode !== 'first') {
+        if (document.pointerLockElement) document.exitPointerLock();
+    }
+};
+
 const _labelWorldPos = new pc.Vec3();
 const _labelCameraPos = new pc.Vec3();
 
 const updateLabelFacingForThirdPerson = () => {
     if (!labelPlane || !cameraEntity) return;
 
+    // Fixed/first mode: use base rotation
+    if (viewMode === 'fixed' || viewMode === 'first') {
+        labelPlane.setLocalEulerAngles(labelBaseEuler);
+        return;
+    }
+
+    // Third-person mode: face camera
     _labelWorldPos.copy(labelPlane.getPosition());
     _labelCameraPos.copy(cameraEntity.getPosition());
     _labelCameraPos.y = _labelWorldPos.y;
@@ -901,12 +1346,28 @@ const updateLabelFacingForThirdPerson = () => {
     if (Math.abs(dx) <= 1e-4 && Math.abs(dz) <= 1e-4) return;
 
     const yaw = Math.atan2(dx, dz) * 180 / Math.PI;
-    labelPlane.setLocalEulerAngles(90, yaw - currentAngle, 0);
+    labelPlane.setLocalEulerAngles(90, yaw, 0);
 };
 
 app.on('update', (dt) => {
+    // Always-run systems
     updateDoors(dt);
+    updateExitDoorFx(dt);
     updatePutItemAction(dt);
+    updatePickupSelectionFx(dt);
+    updateGrabSocketPose();
+    syncHeldItemPose();
+
+    // Camera follow (third/first person)
+    if (viewMode === 'third' || viewMode === 'first') {
+        const p = player.getPosition();
+        const facingEntity = getFacingForwardXZ();
+        if (viewMode === 'third') {
+            updateThirdPersonCamera(p);
+        } else {
+            updateFirstPersonCamera(p);
+        }
+    }
 
     // Billboard: make label face camera
     updateLabelFacingForThirdPerson();
@@ -949,6 +1410,13 @@ app.on('update', (dt) => {
 
     // Update lookAt target
     targetAngle = computeTargetAngle(pos.x, pos.z, node.lx, node.lz);
+
+    // Cache lookDir for camera follow
+    const lookDx = node.lx - pos.x;
+    const lookDz = node.lz - pos.z;
+    if (Math.abs(lookDx) > 0.0001 || Math.abs(lookDz) > 0.0001) {
+        lookDirCache.set(lookDx, 0, lookDz).normalize();
+    }
 
     if (node.turn === 'pause') {
         currentSpeed = 0;
@@ -1072,6 +1540,7 @@ app.on('update', (dt) => {
 });
 
 startCycle();
+initExitDoorFx();
 
 const camera = new pc.Entity('Camera');
 camera.addComponent('camera', {
@@ -1097,7 +1566,38 @@ Object.assign(cc, {
     enableFly: false
 });
 
-app.on('destroy', () => {});
+// Mouse events for exit door/sign interaction
+const exitMouseMove = (event) => {
+    if (!cameraEntity?.camera) return;
+    const cam = cameraEntity.camera;
+    const isDoor = isPointerOnExitDoor(cam, event.x, event.y);
+    const isSign = isPointerOnExitSign(cam, event.x, event.y);
+    isExitDoorHovered = isDoor;
+    const canvas = device.canvas;
+    if (canvas) canvas.style.cursor = (isDoor || isSign) ? 'pointer' : 'default';
+};
+
+const exitMouseDown = (event) => {
+    if (!cameraEntity?.camera) return;
+    const cam = cameraEntity.camera;
+    if (isPointerOnExitSign(cam, event.x, event.y)) {
+        exitSignClickTime = 0.25;
+        showExitPopup();
+        return;
+    }
+    if (isPointerOnExitDoor(cam, event.x, event.y)) {
+        exitDoorClickTime = 0.25;
+        showExitPopup();
+        return;
+    }
+};
+
+app.mouse.on(pc.EVENT_MOUSEMOVE, exitMouseMove);
+app.mouse.on(pc.EVENT_MOUSEDOWN, exitMouseDown);
+app.on('destroy', () => {
+    app.mouse.off(pc.EVENT_MOUSEMOVE, exitMouseMove);
+    app.mouse.off(pc.EVENT_MOUSEDOWN, exitMouseDown);
+});
 
 // ====== Toolbar ======
 
@@ -1547,8 +2047,6 @@ if (!document.getElementById(TOOLBAR_ID)) {
     const ui = createToolbarUi();
     const sceneUi = createScenePanelUi();
 
-    const viewMode = 'fixed';
-    window.__robotViewMode = viewMode;
     let isRobotPaused = false;
     window.__robotPauseAnimation = isRobotPaused;
     let isSceneOpen = false;
@@ -1934,6 +2432,16 @@ if (!document.getElementById(TOOLBAR_ID)) {
         btn.addEventListener('click', onClick);
     };
 
+    const syncViewButtons = () => {
+        const isThird = viewMode === 'third';
+        const isFirst = viewMode === 'first';
+        ui.btnThird.classList.toggle('is-active', !isThird && !isFirst);
+        ui.btnFixed.classList.toggle('is-active', isThird);
+    };
+
+    hookButton(ui.btnThird, () => { setViewMode('fixed'); });
+    hookButton(ui.btnFixed, () => { setViewMode('third'); });
+
     const tvNames = [
         'Mesh_368', 'Mesh_369', 'Mesh_370', 'Mesh_371', 'Mesh_372', 'Mesh_373', 'Mesh_374', 'Mesh_375', 'Mesh_376',
         'Mesh_377', 'Mesh_378', 'Mesh_379', 'Mesh_380', 'Mesh_381', '屏幕'
@@ -2004,5 +2512,6 @@ if (!document.getElementById(TOOLBAR_ID)) {
         }
     });
 
+    syncViewButtons();
     syncPauseButton();
 }
