@@ -294,7 +294,7 @@ class MainLayout extends TypedComponent {
                     null,
                     jsx(Route, {
                         path: '/',
-                        element: jsx(Navigate, { to: '/scene/mes-worker', replace: true })
+                        element: jsx(Navigate, { to: '/scene/robot-worker', replace: true })
                     }),
                     jsx(Route, {
                         path: '/:category/:example',

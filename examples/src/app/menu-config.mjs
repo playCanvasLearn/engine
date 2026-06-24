@@ -182,6 +182,11 @@ export const menuOverrides = {
             "examples": {
                 "mes-worker": {
                     "label": "MES机器人工作场景",
+                    "hidden": true,
+                    "order": 100
+                },
+                "robot-worker": {
+                    "label": "MES机器人工作场景",
                     "hidden": false,
                     "order": 100
                 },
@@ -194,11 +199,6 @@ export const menuOverrides = {
                     "label": "数控螺纹磨床3D手册",
                     "hidden": false,
                     "order": 120
-                },
-                "robot-worker": {
-                    "label": "MES机器人工作者",
-                    "hidden": false,
-                    "order": 90
                 },
                 "physics-ai": {
                     "label": "车间异常模拟",

@@ -556,7 +556,7 @@ class CodeEditorDesktop extends CodeEditorBase {
                         icon: 'E259',
                         text: '',
                         onClick: () => {
-                            const examplePath = getHashPath() === '/' ? 'scene/mes-worker' : getHashPath().slice(1);
+                            const examplePath = getHashPath() === '/' ? 'scene/robot-worker' : getHashPath().slice(1);
                             window.open(
                                 `https://github.com/playcanvas/engine/blob/main/examples/src/examples/${examplePath}.example.mjs`
                             );
