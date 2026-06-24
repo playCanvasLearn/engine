@@ -29,7 +29,13 @@ export default class MiniStats {
         }
         if (state) {
             if (!MiniStats.instance) {
-                MiniStats.instance = new window.pc.MiniStats(app);
+                const options = window.pc.MiniStats.getDefaultOptions();
+                options.stats.push({
+                    name: 'FPS',
+                    stats: ['frame.fps'],
+                    watermark: 60
+                });
+                MiniStats.instance = new window.pc.MiniStats(app, options);
             }
         }
         if (!MiniStats.instance) {
