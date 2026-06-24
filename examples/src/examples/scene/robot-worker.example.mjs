@@ -423,14 +423,17 @@ baseLayer.assignAnimation('Put', assets.putAnim.resource.animations[0].resource)
 const setStatus = v => player.anim.setInteger('playerStatus', v);
 
 const pickupMaterial = new pc.StandardMaterial();
-pickupMaterial.diffuse.set(0.85, 0.55, 0.16);
-pickupMaterial.emissive.set(0.2, 0.09, 0.02);
+pickupMaterial.diffuse.set(0.65, 0.65, 0.65);
+pickupMaterial.metalness = 0.1;
+pickupMaterial.gloss = 0.35;
+pickupMaterial.opacity = 1;
+pickupMaterial.blendType = pc.BLEND_NORMAL;
 pickupMaterial.update();
 
-const pickupItem = new pc.Entity('PickupItem');
+const pickupItem = new pc.Entity('AutoPickupCylinder');
 pickupItem.addComponent('model', { type: 'cylinder', castShadows: true, receiveShadows: true });
 pickupItem.model.material = pickupMaterial;
-pickupItem.setLocalScale(0.18, 0.12, 0.18);
+pickupItem.setLocalScale(0.08, 0.12, 0.08);
 sceneRoot.addChild(pickupItem);
 
 const PICKUP_HOME_POS = new pc.Vec3();
@@ -1539,6 +1542,7 @@ app.on('update', (dt) => {
     applyRotation(dt);
 });
 
+initPickupSystem();
 startCycle();
 initExitDoorFx();
 
@@ -2439,8 +2443,8 @@ if (!document.getElementById(TOOLBAR_ID)) {
         ui.btnFixed.classList.toggle('is-active', isThird);
     };
 
-    hookButton(ui.btnThird, () => { setViewMode('fixed'); });
-    hookButton(ui.btnFixed, () => { setViewMode('third'); });
+    hookButton(ui.btnThird, () => { setViewMode('fixed'); syncViewButtons(); });
+    hookButton(ui.btnFixed, () => { setViewMode('third'); syncViewButtons(); });
 
     const tvNames = [
         'Mesh_368', 'Mesh_369', 'Mesh_370', 'Mesh_371', 'Mesh_372', 'Mesh_373', 'Mesh_374', 'Mesh_375', 'Mesh_376',
