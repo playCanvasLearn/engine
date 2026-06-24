@@ -308,14 +308,14 @@ const robotRenderEntity = assets.robot.resource.instantiateRenderEntity({ castSh
 robotRenderEntity.setLocalScale(0.01, 0.01, 0.01);
 robotRenderEntity.setLocalEulerAngles(90, 0, 0);
 
-const billboard = new pc.Entity('Billboard');
+const _labelBaseEuler = new pc.Vec3();
+
 const labelPlane = new pc.Entity('labelPlane');
 labelPlane.addComponent('render', { type: 'plane' });
-labelPlane.setLocalPosition(0, 2.266, 0);
 labelPlane.setLocalEulerAngles(90, 90, 0);
 labelPlane.setLocalScale(0.5, 0.5, 0.5);
-billboard.addChild(labelPlane);
-const labelBaseEuler = labelPlane.getLocalEulerAngles().clone();
+_labelBaseEuler.copy(labelPlane.getLocalEulerAngles());
+sceneRoot.addChild(labelPlane);
 
 const labelCanvas = document.createElement('canvas');
 labelCanvas.width = 256;
@@ -384,8 +384,7 @@ const player = new pc.Entity('player');
 player.setLocalPosition(1.5, 0.061, 0);
 player.setLocalScale(1.5, 1.5, 1.5);
 player.addChild(robotRenderEntity);
-player.addChild(billboard);
-player.addComponent('anim', { activate: true });
+robotRenderEntity.addComponent('anim', { activate: true });
 sceneRoot.addChild(player);
 
 const animStateGraphData = {
@@ -417,8 +416,8 @@ const animStateGraphData = {
     }
 };
 
-player.anim.loadStateGraph(animStateGraphData);
-const baseLayer = player.anim.baseLayer;
+robotRenderEntity.anim.loadStateGraph(animStateGraphData);
+const baseLayer = robotRenderEntity.anim.baseLayer;
 baseLayer.assignAnimation('Idle', assets.idleAnim.resource.animations[0].resource);
 baseLayer.assignAnimation('Walk', assets.walkAnim.resource.animations[0].resource);
 baseLayer.assignAnimation('Take', assets.takeAnim.resource.animations[0].resource);
@@ -428,7 +427,7 @@ let _playerStatus = 0;
 const setStatus = (v) => {
     if (_playerStatus === v) return;
     _playerStatus = v;
-    player.anim.setInteger('playerStatus', v);
+    robotRenderEntity.anim.setInteger('playerStatus', v);
 };
 
 const pickupMaterial = new pc.StandardMaterial();
@@ -1338,17 +1337,19 @@ const setViewMode = (mode) => {
 
 const _labelWorldPos = new pc.Vec3();
 const _labelCameraPos = new pc.Vec3();
+let _labelYaw = 0;
 
-const updateLabelFacingForThirdPerson = () => {
+const updateLabelFacing = () => {
     if (!labelPlane || !cameraEntity) return;
 
-    // Fixed/first mode: use base rotation
-    if (viewMode === 'fixed' || viewMode === 'first') {
-        labelPlane.setLocalEulerAngles(labelBaseEuler);
+    const ppos = player.getPosition();
+    labelPlane.setPosition(ppos.x, ppos.y + 3.4, ppos.z);
+
+    if (window.__robotViewMode !== 'third' || !cameraEntity) {
+        labelPlane.setLocalEulerAngles(_labelBaseEuler);
         return;
     }
 
-    // Third-person mode: face camera
     _labelWorldPos.copy(labelPlane.getPosition());
     _labelCameraPos.copy(cameraEntity.getPosition());
     _labelCameraPos.y = _labelWorldPos.y;
@@ -1357,8 +1358,8 @@ const updateLabelFacingForThirdPerson = () => {
     const dz = _labelCameraPos.z - _labelWorldPos.z;
     if (Math.abs(dx) <= 1e-4 && Math.abs(dz) <= 1e-4) return;
 
-    const yaw = Math.atan2(dx, dz) * 180 / Math.PI;
-    labelPlane.setLocalEulerAngles(90, yaw, 0);
+    _labelYaw = Math.atan2(dx, dz) * 180 / Math.PI;
+    labelPlane.setLocalEulerAngles(90, _labelYaw, 0);
 };
 
 app.on('update', (dt) => {
@@ -1382,7 +1383,7 @@ app.on('update', (dt) => {
     }
 
     // Billboard: make label face camera
-    updateLabelFacingForThirdPerson();
+    updateLabelFacing();
 
     if (window.__robotPauseAnimation) {
         currentSpeed = 0;
