@@ -144,6 +144,7 @@ export const stripConfig = (source) => {
  * @property {string} [EXTERNAL_URL] - External URL to embed instead of running an internal example.
  * @property {boolean} [HIDDEN] - The example is hidden from the sidebar list in production builds (`npm run build`). It is still built and reachable via its URL. In development (`npm run develop`) it is still shown in the sidebar.
  * @property {'development' | 'performance' | 'debug'} [ENGINE] - The engine type.
+ * @property {boolean} [NO_CONTROLS_PANEL] - No controls panel.
  * @property {boolean} [NO_DEVICE_SELECTOR] - No device selector.
  * @property {boolean} [NO_MINISTATS] - No ministats.
  * @property {boolean} [WEBGPU_DISABLED] - If webgpu is disabled.

@@ -93,7 +93,8 @@ class ExampleLoader {
                 observer: data,
                 files,
                 description: this._config.DESCRIPTION || '',
-                credits: this._config.CREDITS || []
+                credits: this._config.CREDITS || [],
+                hideControls: this._config.NO_CONTROLS_PANEL || this._config.NO_DEVICE_SELECTOR
             });
         }
         this._started = true;
@@ -109,7 +110,8 @@ class ExampleLoader {
             observer: data,
             files,
             description: this._config.DESCRIPTION || '',
-            credits: this._config.CREDITS || []
+            credits: this._config.CREDITS || [],
+            hideControls: this._config.NO_CONTROLS_PANEL || this._config.NO_DEVICE_SELECTOR
         });
 
         if (this._app) {
@@ -230,7 +232,7 @@ class ExampleLoader {
 
         if (!this._started) {
             // just notify to clean UI, but not during hot-reload
-            fire('exampleLoading', { showDeviceSelector: !this._config.NO_DEVICE_SELECTOR });
+            fire('exampleLoading', {});
         }
 
         clearImports();

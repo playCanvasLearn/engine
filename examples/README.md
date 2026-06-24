@@ -196,6 +196,7 @@ Examples can also contain comments which allow you to define the default configu
 //
 // @flag HIDDEN
 // @flag ENGINE=performance
+// @flag NO_CONTROLS_PANEL
 // @flag NO_DEVICE_SELECTOR
 // @flag NO_MINISTATS
 // @flag WEBGPU_DISABLED

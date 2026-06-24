@@ -1,6 +1,7 @@
 // @config
 //
 // 适用于给工业设备/产品模型添加“热点标注”，用于讲解结构、功能点或操作设备指导等。
+// @flag NO_DEVICE_SELECTOR
 
 import * as pc from 'playcanvas';
 import { Annotation, AnnotationManager } from 'playcanvas/scripts/esm/annotations.mjs';

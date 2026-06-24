@@ -204,7 +204,7 @@ const createState = () => {
         loadProgress: 0,
         loadStage: '',
         controls: () => null,
-        showDeviceSelector: true,
+        showDeviceSelector: false,
         files: { 'example.mjs': '// loading' },
         observer: null,
         description: '',
@@ -428,8 +428,8 @@ class Example extends TypedComponent {
      */
     async _handleExampleLoad(event) {
         const path = this.iframePath;
-        const { files, observer, description, credits = [] } = event.detail;
-        const controlsSrc = files['controls.jsx'];
+        const { files, observer, description, credits = [], hideControls } = event.detail;
+        const controlsSrc = hideControls ? null : files['controls.jsx'];
         if (!description && !credits.length && this.props.mobilePanel === 'description') {
             this.props.setMobilePanel?.(null);
         }
@@ -517,9 +517,9 @@ class Example extends TypedComponent {
      */
     async _handleUpdateFiles(event) {
         const path = this.iframePath;
-        const { files, observer, description, credits = [] } = event.detail;
-        const controlsSrc = files['controls.jsx'] ?? '';
-        if (!files['controls.jsx']) {
+        const { files, observer, description, credits = [], hideControls } = event.detail;
+        const controlsSrc = hideControls ? '' : (files['controls.jsx'] ?? '');
+        if (!controlsSrc) {
             this.mergeState({
                 exampleLoaded: true,
                 loadedPath: path,
@@ -1144,7 +1144,11 @@ class Example extends TypedComponent {
     }
 
     renderDesktop() {
-        const { collapsed } = this.state;
+        const { collapsed, controls, showDeviceSelector } = this.state;
+        const hasDeviceSelector = showDeviceSelector && this.renderDeviceSelector();
+        if (!controls && !hasDeviceSelector) {
+            return null;
+        }
         return jsx(
             'div',
             { style: { display: 'contents' } },
@@ -1163,7 +1167,7 @@ class Example extends TypedComponent {
                         collapsible: true,
                         collapsed
                     },
-                    this.renderDeviceSelector(),
+                    hasDeviceSelector,
                     jsx(
                         Container,
                         {
