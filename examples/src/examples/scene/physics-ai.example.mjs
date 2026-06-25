@@ -1608,16 +1608,54 @@ const exitMouseDown = (event) => {
     }
 };
 
+const debugClickWorldPosition = (event) => {
+    if (!cameraEntity?.camera) return;
+
+    const rayStart = cameraEntity.getPosition().clone();
+    const rayEnd = cameraEntity.camera.screenToWorld(event.x, event.y, cameraEntity.camera.farClip);
+    const hit = app.systems.rigidbody?.raycastFirst(rayStart, rayEnd);
+
+    let worldPoint = null;
+    let hitName = 'none';
+
+    if (hit?.point) {
+        worldPoint = hit.point;
+        hitName = hit.entity?.name || 'unnamed';
+    } else {
+        const nearPoint = cameraEntity.camera.screenToWorld(event.x, event.y, cameraEntity.camera.nearClip);
+        const planeY = ground?.getPosition?.().y ?? 0;
+        const dy = rayEnd.y - nearPoint.y;
+        if (Math.abs(dy) > 1e-5) {
+            const t = (planeY - nearPoint.y) / dy;
+            if (t >= 0) {
+                worldPoint = nearPoint.lerp(nearPoint, rayEnd, t);
+                hitName = 'ground-plane';
+            }
+        }
+    }
+
+    if (!worldPoint) return;
+
+    console.log(
+        `[ClickWorld] screen=(${event.x}, ${event.y}) world=(${worldPoint.x.toFixed(3)}, ${worldPoint.y.toFixed(3)}, ${worldPoint.z.toFixed(3)}) hit=${hitName}`
+    );
+};
+
 app.mouse.on(pc.EVENT_MOUSEMOVE, exitMouseMove);
 app.mouse.on(pc.EVENT_MOUSEDOWN, exitMouseDown);
+app.mouse.on(pc.EVENT_MOUSEDOWN, debugClickWorldPosition);
 // ====== Fire / Smoke / Alarm Effects ======
-
+/**
+ * - 左边  z轴 正方向
+ * - 里面  x轴 负方向
+ * - 上方  Y轴 正方向
+ */
 const FIRE_AUDIO_URL = './assets/scene/robot-worker/firefx/fire.mp3';
 const FIRE_PILE_POSITIONS = [
-    new pc.Vec3(1.35, ROBOT_Y + 0.03, -0.28),
-    new pc.Vec3(-1.75, ROBOT_Y + 0.03, -1.92)
+    new pc.Vec3(1.35, ROBOT_Y + 0.03, 1.28),
+    new pc.Vec3(1.35, ROBOT_Y + 0.03, -1.92)
 ];
-const ALARM_BEACON_POSITION = new pc.Vec3(2.35, ROBOT_Y + 0.03, -2.15);
+const ALARM_BEACON_POSITION = new pc.Vec3(4.35, -1.9, -2.15);
 
 const incidentFx = {
     firePiles: [],
@@ -1981,7 +2019,6 @@ const ensureIncidentRoot = () => {
     beaconMaterial.useLighting = false;
     beaconMaterial.update();
     beacon.render.material = beaconMaterial;
-    beacon.enabled = false;
     incidentFx.beacon = beacon;
     incidentFx.beaconMaterial = beaconMaterial;
 
@@ -2020,7 +2057,6 @@ const applyIncidentVisualState = () => {
         smoke.smokePlume.enabled = incidentFx.smokeEnabled;
     }
 
-    if (incidentFx.beacon) incidentFx.beacon.enabled = incidentFx.alarmEnabled;
     if (incidentFx.beaconLight) incidentFx.beaconLight.enabled = incidentFx.alarmEnabled;
 
     for (let i = 0; i < incidentFx.smokePiles.length; i++) {
@@ -2035,11 +2071,7 @@ const applyIncidentVisualState = () => {
         }
     }
 
-    if (incidentFx.alarmEnabled) {
-        playAlarmAudio();
-    } else {
-        stopAlarmAudio();
-    }
+    stopAlarmAudio();
 };
 
 const toggleFireFx = () => {
@@ -2129,12 +2161,15 @@ document.body.appendChild(fxOverlay);
 document.getElementById('btn-fire').addEventListener('click', toggleFireFx);
 document.getElementById('btn-smoke').addEventListener('click', toggleSmokeFx);
 document.getElementById('btn-alarm').addEventListener('click', toggleAlarmFx);
+ensureIncidentRoot();
+applyIncidentVisualState();
 updateFxButtons();
 
 // --- Merge cleanups ---
 app.on('destroy', () => {
     app.mouse.off(pc.EVENT_MOUSEMOVE, exitMouseMove);
     app.mouse.off(pc.EVENT_MOUSEDOWN, exitMouseDown);
+    app.mouse.off(pc.EVENT_MOUSEDOWN, debugClickWorldPosition);
     stopAlarmAudio();
     fxOverlay.remove();
     fxStyle.remove();
