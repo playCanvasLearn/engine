@@ -1663,6 +1663,8 @@ const SPRINKLER_CENTER_POSITION = new pc.Vec3(
     ROBOT_Y + 0.03,
     (FIRE_PILE_POSITIONS[0].z + FIRE_PILE_POSITIONS[1].z) * 0.5
 );
+const SPRAY_EXTINGUISH_DELAY = 2;
+const SPRAY_EXTINGUISH_DURATION = 5;
 const WATER_LEAK_POSITIONS = [
     SPRINKLER_CENTER_POSITION
 ];
@@ -1687,6 +1689,7 @@ const waterFx = {
     leaks: [],
     enabled: false,
     time: 0,
+    sprayElapsed: 0,
     sprinklerMaterial: null,
     sprinklerAccentMaterial: null,
     sim: {
@@ -1865,6 +1868,7 @@ const createClassicFlamePile = (root) => {
         type: 'classic',
         primary: flame,
         primaryBasePos: new pc.Vec3(0, 0.02, 0),
+        primaryBaseScale: flame.getLocalScale().clone(),
         secondary: null,
         embers: null,
         fireLight: light,
@@ -1989,10 +1993,13 @@ const createFireballFlamePile = (root) => {
         type: 'fireball',
         primary: fireCore,
         primaryBasePos: new pc.Vec3(0, 0.05, 0),
+        primaryBaseScale: fireCore.getLocalScale().clone(),
         secondary: fireBurst,
         secondaryBasePos: new pc.Vec3(0, 0.18, 0),
+        secondaryBaseScale: fireBurst.getLocalScale().clone(),
         embers,
         embersBasePos: new pc.Vec3(0, 0.1, 0),
+        embersBaseScale: embers.getLocalScale().clone(),
         fireLight: light,
         windState: createWindState(0.28, 0.04)
     };
@@ -2063,8 +2070,10 @@ const createSmokePile = (root, heightScale = 1) => {
     return {
         smokeBase,
         smokeBasePos: new pc.Vec3(0, 0.26 * heightScale, 0),
+        smokeBaseScale: smokeBase.getLocalScale().clone(),
         smokePlume,
         smokePlumePos: new pc.Vec3(0, 0.55 * heightScale, 0),
+        smokePlumeScale: smokePlume.getLocalScale().clone(),
         windState: createWindState(0.45 * heightScale, 0.08 * heightScale)
     };
 };
@@ -2528,6 +2537,7 @@ const ensureWaterLeaks = () => {
 const toggleWaterFx = () => {
     if (!waterFx.enabled) ensureWaterLeaks();
     waterFx.enabled = !waterFx.enabled;
+    if (waterFx.enabled) waterFx.sprayElapsed = 0;
 
     for (let i = 0; i < waterFx.leaks.length; i++) {
         const leak = waterFx.leaks[i];
@@ -2542,13 +2552,14 @@ app.on('update', (dt) => {
     if (!waterFx.roots.length) return;
 
     waterFx.time += dt;
+    if (waterFx.enabled) waterFx.sprayElapsed += dt;
 
     for (let i = 0; i < waterFx.leaks.length; i++) {
         const leak = waterFx.leaks[i];
         const wind = updateWindState(leak.windState, dt);
 
-        if (leak.sprinkler) leak.sprinkler.setLocalPosition(wind.x * 0.55, 3.2, wind.z * 0.55);
-        if (leak.jet) leak.jet.setLocalPosition(wind.x * 0.55, 3.2, wind.z * 0.55);
+        if (leak.sprinkler) leak.sprinkler.setLocalPosition(0, 3.2, 0);
+        if (leak.jet) leak.jet.setLocalPosition(0, 3.2, 0);
         if (leak.splash) leak.splash.setLocalPosition(wind.x * 0.22, 0.02, wind.z * 0.22);
 
         leak.poolSize += (leak.poolTargetSize - leak.poolSize) * Math.min(1, dt * 0.35);
@@ -2720,6 +2731,12 @@ app.on('update', (dt) => {
     if (!incidentFx.firePiles.length && !incidentFx.alarmRoot) return;
 
     incidentFx.time += dt;
+    const spraying = waterFx.enabled;
+    const shouldExtinguish = spraying && waterFx.sprayElapsed >= SPRAY_EXTINGUISH_DELAY;
+    const extinguishT = shouldExtinguish
+        ? Math.min(1, (waterFx.sprayElapsed - SPRAY_EXTINGUISH_DELAY) / Math.max(0.001, SPRAY_EXTINGUISH_DURATION))
+        : 0;
+    const heightFactor = shouldExtinguish ? 1 - extinguishT : 1;
 
     for (let i = 0; i < incidentFx.firePiles.length; i++) {
         const pile = incidentFx.firePiles[i];
@@ -2744,6 +2761,10 @@ app.on('update', (dt) => {
                 pile.primaryBasePos.z + wind.z * 0.35
             );
             pile.primary.setLocalEulerAngles(wind.z * 12, 0, -wind.x * 12);
+            if (pile.primaryBaseScale) {
+                const y = pile.primaryBaseScale.y * Math.max(0, heightFactor);
+                pile.primary.setLocalScale(pile.primaryBaseScale.x, y, pile.primaryBaseScale.z);
+            }
         }
 
         if (pile.secondary && pile.secondaryBasePos) {
@@ -2753,6 +2774,10 @@ app.on('update', (dt) => {
                 pile.secondaryBasePos.z + wind.z * 0.55
             );
             pile.secondary.setLocalEulerAngles(wind.z * 18, 0, -wind.x * 18);
+            if (pile.secondaryBaseScale) {
+                const y = pile.secondaryBaseScale.y * Math.max(0, heightFactor * 0.9);
+                pile.secondary.setLocalScale(pile.secondaryBaseScale.x, y, pile.secondaryBaseScale.z);
+            }
         }
 
         if (pile.embers && pile.embersBasePos) {
@@ -2761,6 +2786,10 @@ app.on('update', (dt) => {
                 pile.embersBasePos.y + wind.y * 0.2,
                 pile.embersBasePos.z + wind.z * 0.45
             );
+            if (pile.embersBaseScale) {
+                const y = pile.embersBaseScale.y * Math.max(0, heightFactor * 0.85);
+                pile.embers.setLocalScale(pile.embersBaseScale.x, y, pile.embersBaseScale.z);
+            }
         }
     }
 
@@ -2774,6 +2803,10 @@ app.on('update', (dt) => {
             smoke.smokeBasePos.z + wind.z * 0.65
         );
         smoke.smokeBase.setLocalEulerAngles(wind.z * 16, 0, -wind.x * 16);
+        if (smoke.smokeBaseScale) {
+            const y = smoke.smokeBaseScale.y * Math.max(0, heightFactor);
+            smoke.smokeBase.setLocalScale(smoke.smokeBaseScale.x, y, smoke.smokeBaseScale.z);
+        }
 
         smoke.smokePlume.setLocalPosition(
             smoke.smokePlumePos.x + wind.x * 1.2,
@@ -2781,6 +2814,10 @@ app.on('update', (dt) => {
             smoke.smokePlumePos.z + wind.z * 1.2
         );
         smoke.smokePlume.setLocalEulerAngles(wind.z * 24, 0, -wind.x * 24);
+        if (smoke.smokePlumeScale) {
+            const y = smoke.smokePlumeScale.y * Math.max(0, heightFactor * 1.05);
+            smoke.smokePlume.setLocalScale(smoke.smokePlumeScale.x, y, smoke.smokePlumeScale.z);
+        }
     }
 
     if (incidentFx.alarmEnabled && incidentFx.beaconMaterial && incidentFx.beaconLight?.light) {
@@ -2792,6 +2829,22 @@ app.on('update', (dt) => {
         incidentFx.beaconMaterial.emissiveIntensity = 0.2;
         incidentFx.beaconMaterial.update();
         incidentFx.beaconLight.light.intensity = 0.5;
+    }
+
+    if (shouldExtinguish && extinguishT >= 1 && (incidentFx.fireEnabled || incidentFx.smokeEnabled || waterFx.enabled)) {
+        incidentFx.fireEnabled = false;
+        incidentFx.smokeEnabled = false;
+        waterFx.enabled = false;
+        waterFx.sprayElapsed = 0;
+        for (let i = 0; i < waterFx.leaks.length; i++) {
+            const leak = waterFx.leaks[i];
+            leak.jet.enabled = false;
+            leak.splash.enabled = false;
+            leak.poolTargetSize = 0.5;
+        }
+        applyIncidentVisualState();
+        updateFxButtons();
+        destroyIncidentRootIfIdle();
     }
 });
 
@@ -2824,7 +2877,7 @@ fxOverlay.innerHTML = `
     <button class="fire-btn" id="btn-fire">🔥<span class="label">火焰</span></button>
     <button class="smoke-btn" id="btn-smoke">💨<span class="label">烟雾</span></button>
     <button class="alarm-btn" id="btn-alarm">🚨<span class="label">警报</span></button>
-    <button class="water-btn" id="btn-water">💧<span class="label">漏水</span></button>
+    <button class="water-btn" id="btn-water">💧<span class="label">喷水</span></button>
 `;
 document.body.appendChild(fxOverlay);
 
