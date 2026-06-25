@@ -26,14 +26,6 @@ await Promise.all([
     })
 ]);
 
-await new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = './assets/scene/robot-worker/echarts.min.js';
-    s.onload = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
-});
-
 const assets = {
     map: new pc.Asset('map', 'container', { url: './assets/scene/robot-worker/sketchMap.glb' }),
     robot: new pc.Asset('robot', 'container', { url: './assets/scene/robot-worker/animation3.glb' }),
@@ -89,7 +81,6 @@ app.start();
 
 app.scene.exposure = 1;
 app.scene.ambientLight = new pc.Color(0.2, 0.2, 0.2);
-app.scene.gammaCorrection = pc.GAMMA_SRGB;
 app.scene.skyboxMip = 0;
 app.scene.skyboxIntensity = 1;
 app.scene.envAtlas = assets.sky.resource;
@@ -186,8 +177,6 @@ if (screenEntity) {
         chartCanvas.style.display = 'none';
         document.body.appendChild(chartCanvas);
 
-        const myChart = window.echarts.init(chartCanvas, null, { renderer: 'canvas' });
-
         // Chart data
         const chartData = [];
         let lastVal = 50;
@@ -237,55 +226,120 @@ if (screenEntity) {
 
         overlay.model.material = overlayMat;
 
-        // Update chart option
-        const updateChartOption = (title) => {
-            const fmt = chartData.map((item) => {
-                const d = new Date(item.time);
-                const h = d.getHours().toString().padStart(2, '0');
-                const m = d.getMinutes().toString().padStart(2, '0');
-                const s = d.getSeconds().toString().padStart(2, '0');
-                return { time: `${h}:${m}:${s}`, value: Number(item.value).toFixed(2) };
-            });
-            myChart.setOption({
-                title: {
-                    text: title || '实时数据监控',
-                    textStyle: { color: '#fff', fontSize: 14 },
-                    left: '10%',
-                    top: '20%'
-                },
-                tooltip: {
-                    trigger: 'axis',
-                    textStyle: { color: '#fff' },
-                    backgroundColor: 'rgba(0,0,0,0.2)'
-                },
-                xAxis: {
-                    type: 'category',
-                    data: fmt.map(f => f.time),
-                    axisLine: { lineStyle: { color: '#fff' } },
-                    axisLabel: { color: '#fff', fontSize: 10, rotate: 45 }
-                },
-                yAxis: {
-                    type: 'value',
-                    axisLine: { lineStyle: { color: '#fff' } },
-                    axisLabel: { color: '#fff' },
-                    splitLine: { show: false }
-                },
-                series: [{
-                    data: fmt.map(f => f.value),
-                    type: 'line',
-                    smooth: true,
-                    lineStyle: { color: '#00ff00' },
-                    itemStyle: { color: '#00ff00' }
-                }],
-                backgroundColor: 'rgba(0,0,0,0.8)',
-                grid: { left: '12%', right: '10%', top: '30%', bottom: '35%' },
-                animation: true,
-                animationDuration: 1000
-            }, true);
+        const chartCtx = chartCanvas.getContext('2d');
+        let chartTitle = '实时数据监控';
+
+        const formatTime = (t) => {
+            const d = new Date(t);
+            const h = d.getHours().toString().padStart(2, '0');
+            const m = d.getMinutes().toString().padStart(2, '0');
+            const s = d.getSeconds().toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        };
+
+        const drawChart = () => {
+            if (!chartCtx) return;
+
+            const w = chartCanvas.width;
+            const h = chartCanvas.height;
+
+            chartCtx.clearRect(0, 0, w, h);
+            chartCtx.fillStyle = 'rgba(0,0,0,0.8)';
+            chartCtx.fillRect(0, 0, w, h);
+
+            chartCtx.fillStyle = '#ffffff';
+            chartCtx.font = 'bold 16px "Microsoft YaHei", Arial';
+            chartCtx.textAlign = 'left';
+            chartCtx.textBaseline = 'top';
+            chartCtx.fillText(chartTitle || '实时数据监控', 16, 10);
+
+            const left = 52;
+            const right = 14;
+            const top = 38;
+            const bottom = 48;
+            const pw = Math.max(1, w - left - right);
+            const ph = Math.max(1, h - top - bottom);
+
+            chartCtx.strokeStyle = 'rgba(255,255,255,0.65)';
+            chartCtx.lineWidth = 1;
+            chartCtx.beginPath();
+            chartCtx.moveTo(left, top);
+            chartCtx.lineTo(left, top + ph);
+            chartCtx.lineTo(left + pw, top + ph);
+            chartCtx.stroke();
+
+            chartCtx.fillStyle = 'rgba(255,255,255,0.8)';
+            chartCtx.font = '12px "Microsoft YaHei", Arial';
+            chartCtx.textAlign = 'right';
+            chartCtx.textBaseline = 'middle';
+
+            const yTicks = [0, 25, 50, 75, 100];
+            for (const v of yTicks) {
+                const yy = top + ph - (v / 100) * ph;
+                chartCtx.fillText(String(v), left - 6, yy);
+                chartCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+                chartCtx.beginPath();
+                chartCtx.moveTo(left, yy);
+                chartCtx.lineTo(left + pw, yy);
+                chartCtx.stroke();
+            }
+
+            const n = chartData.length;
+            if (n >= 2) {
+                chartCtx.strokeStyle = '#00ff00';
+                chartCtx.lineWidth = 2;
+                chartCtx.beginPath();
+                for (let i = 0; i < n; i++) {
+                    const x = left + (i / (n - 1)) * pw;
+                    const v = Math.max(0, Math.min(100, chartData[i].value));
+                    const y = top + ph - (v / 100) * ph;
+                    if (i === 0) chartCtx.moveTo(x, y);
+                    else chartCtx.lineTo(x, y);
+                }
+                chartCtx.stroke();
+
+                chartCtx.fillStyle = '#00ff00';
+                for (let i = 0; i < n; i++) {
+                    const x = left + (i / (n - 1)) * pw;
+                    const v = Math.max(0, Math.min(100, chartData[i].value));
+                    const y = top + ph - (v / 100) * ph;
+                    chartCtx.beginPath();
+                    chartCtx.arc(x, y, 2.5, 0, Math.PI * 2);
+                    chartCtx.fill();
+                }
+            }
+
+            chartCtx.save();
+            chartCtx.fillStyle = 'rgba(255,255,255,0.8)';
+            chartCtx.font = '10px "Microsoft YaHei", Arial';
+            chartCtx.textAlign = 'right';
+            chartCtx.textBaseline = 'top';
+            for (let i = 0; i < chartData.length; i++) {
+                const x = left + (i / Math.max(1, chartData.length - 1)) * pw;
+                const y = top + ph + 6;
+                chartCtx.save();
+                chartCtx.translate(x, y);
+                chartCtx.rotate(-Math.PI / 4);
+                chartCtx.fillText(formatTime(chartData[i].time), 0, 0);
+                chartCtx.restore();
+            }
+            chartCtx.restore();
 
             chartTex.setSource(chartCanvas);
             chartTex.upload();
         };
+
+        const updateChartOption = (title) => {
+            if (typeof title === 'string' && title.length) {
+                chartTitle = title;
+            } else if (title === undefined) {
+                chartTitle = chartTitle || '实时数据监控';
+            } else {
+                chartTitle = '实时数据监控';
+            }
+            drawChart();
+        };
+
         updateChartTitle = updateChartOption;
 
         // First render after a short delay
@@ -295,7 +349,6 @@ if (screenEntity) {
 
         // Update data every 5 seconds
         let chartTimer = 0;
-        // Store reference for update loop
         app.on('update', (dt) => {
             chartTimer += dt;
             if (chartTimer >= 5) {
@@ -307,9 +360,6 @@ if (screenEntity) {
                 if (chartData.length > 10) chartData.shift();
                 updateChartOption();
             }
-            // Upload every frame for ECharts animation
-            chartTex.setSource(chartCanvas);
-            chartTex.upload();
         });
     }
 }
@@ -1564,6 +1614,7 @@ const camera = new pc.Entity('Camera');
 camera.addComponent('camera', {
     farClip: 200,
     fov: 45,
+    gammaCorrection: pc.GAMMA_SRGB,
     clearColor: new pc.Color(0.118, 0.118, 0.118, 1)
 });
 camera.addComponent('script');
