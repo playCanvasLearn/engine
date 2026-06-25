@@ -48,7 +48,9 @@ const assets = {
     ),
     spark: new pc.Asset('spark', 'texture', { url: './assets/textures/spark.png' }, { srgb: true }),
     snowflake: new pc.Asset('snowflake', 'texture', { url: './assets/textures/snowflake.png' }, { srgb: true }),
-    flameAtlas: new pc.Asset('flameAtlas', 'texture', { url: './assets/scene/robot-worker/firefx/explode3.png' }, { srgb: true })
+    flameAtlas: new pc.Asset('flameAtlas', 'texture', { url: './assets/scene/robot-worker/firefx/explode3.png' }, { srgb: true }),
+    waterParticle: new pc.Asset('waterParticle', 'texture', { url: './assets/scene/robot-worker/waterfx/water.png' }, { srgb: true }),
+    waterTiles: new pc.Asset('waterTiles', 'texture', { url: './assets/scene/robot-worker/waterfx/tiles.jpg' }, { srgb: true })
 };
 
 const canvas = document.getElementById('application-canvas');
@@ -1656,6 +1658,9 @@ const FIRE_PILE_POSITIONS = [
     new pc.Vec3(1.35, ROBOT_Y + 0.03, -1.92)
 ];
 const ALARM_BEACON_POSITION = new pc.Vec3(4.35, -1.9, -2.15);
+const WATER_LEAK_POSITIONS = [
+    new pc.Vec3(-0.35, ROBOT_Y + 0.03, 1.65)
+];
 
 const incidentFx = {
     firePiles: [],
@@ -1670,6 +1675,25 @@ const incidentFx = {
     smokeEnabled: false,
     alarmEnabled: false,
     time: 0
+};
+
+const waterFx = {
+    roots: [],
+    leaks: [],
+    enabled: false,
+    time: 0,
+    sprinklerMaterial: null,
+    sprinklerAccentMaterial: null,
+    sim: {
+        supported: false,
+        res: 256,
+        delta: [1 / 256, 1 / 256],
+        clearShader: null,
+        dropShader: null,
+        updateShader: null,
+        normalShader: null,
+        normalMapShader: null
+    }
 };
 
 const createParticleLayer = (parent, name, localPosition, options) => {
@@ -1767,9 +1791,11 @@ const updateFxButtons = () => {
     const fireBtn = document.getElementById('btn-fire');
     const smokeBtn = document.getElementById('btn-smoke');
     const alarmBtn = document.getElementById('btn-alarm');
+    const waterBtn = document.getElementById('btn-water');
     if (fireBtn) fireBtn.classList.toggle('active', incidentFx.fireEnabled);
     if (smokeBtn) smokeBtn.classList.toggle('active', incidentFx.smokeEnabled);
     if (alarmBtn) alarmBtn.classList.toggle('active', incidentFx.alarmEnabled);
+    if (waterBtn) waterBtn.classList.toggle('active', waterFx.enabled);
 };
 
 const destroyIncidentRootIfIdle = () => {
@@ -2038,6 +2064,517 @@ const createSmokePile = (root, heightScale = 1) => {
     };
 };
 
+const initWaterSimIfNeeded = () => {
+    if (waterFx.sim.clearShader) return;
+
+    waterFx.sim.supported = !device.isWebGPU;
+    if (!waterFx.sim.supported) return;
+
+    const glslHeader = 'precision highp float;\\n';
+
+    waterFx.sim.clearShader = pc.ShaderUtils.createShader(device, {
+        uniqueName: 'WaterSimClear',
+        attributes: { aPosition: pc.SEMANTIC_POSITION },
+        vertexChunk: 'quadVS',
+        fragmentGLSL: `${glslHeader}varying vec2 uv0;\\nvoid main() { gl_FragColor = vec4(0.0); }`
+    });
+
+    waterFx.sim.updateShader = pc.ShaderUtils.createShader(device, {
+        uniqueName: 'WaterSimUpdate',
+        attributes: { aPosition: pc.SEMANTIC_POSITION },
+        vertexChunk: 'quadVS',
+        fragmentGLSL: /* glsl */ `
+            precision highp float;
+            uniform sampler2D sourceTexture;
+            uniform vec2 delta;
+            varying vec2 uv0;
+
+            void main() {
+                vec4 info = texture2D(sourceTexture, uv0);
+                vec2 dx = vec2(delta.x, 0.0);
+                vec2 dy = vec2(0.0, delta.y);
+                float average = (
+                    texture2D(sourceTexture, uv0 - dx).r +
+                    texture2D(sourceTexture, uv0 - dy).r +
+                    texture2D(sourceTexture, uv0 + dx).r +
+                    texture2D(sourceTexture, uv0 + dy).r
+                ) * 0.25;
+                info.g += (average - info.r) * 2.0;
+                info.g *= 0.995;
+                info.r += info.g;
+                gl_FragColor = info;
+            }
+        `
+    });
+
+    waterFx.sim.dropShader = pc.ShaderUtils.createShader(device, {
+        uniqueName: 'WaterSimDrop',
+        attributes: { aPosition: pc.SEMANTIC_POSITION },
+        vertexChunk: 'quadVS',
+        fragmentGLSL: /* glsl */ `
+            precision highp float;
+            const float PI = 3.141592653589793;
+            uniform sampler2D sourceTexture;
+            uniform vec2 centerUv;
+            uniform float radius;
+            uniform float strength;
+            varying vec2 uv0;
+
+            void main() {
+                vec4 info = texture2D(sourceTexture, uv0);
+                float drop = max(0.0, 1.0 - length(centerUv - uv0) / radius);
+                drop = 0.5 - cos(drop * PI) * 0.5;
+                info.r += drop * strength;
+                gl_FragColor = info;
+            }
+        `
+    });
+
+    waterFx.sim.normalShader = pc.ShaderUtils.createShader(device, {
+        uniqueName: 'WaterSimNormals',
+        attributes: { aPosition: pc.SEMANTIC_POSITION },
+        vertexChunk: 'quadVS',
+        fragmentGLSL: /* glsl */ `
+            precision highp float;
+            uniform sampler2D sourceTexture;
+            uniform vec2 delta;
+            varying vec2 uv0;
+
+            void main() {
+                vec4 info = texture2D(sourceTexture, uv0);
+                vec3 dx = vec3(delta.x, texture2D(sourceTexture, vec2(uv0.x + delta.x, uv0.y)).r - info.r, 0.0);
+                vec3 dy = vec3(0.0, texture2D(sourceTexture, vec2(uv0.x, uv0.y + delta.y)).r - info.r, delta.y);
+                info.ba = normalize(cross(dy, dx)).xz;
+                gl_FragColor = info;
+            }
+        `
+    });
+
+    waterFx.sim.normalMapShader = pc.ShaderUtils.createShader(device, {
+        uniqueName: 'WaterSimNormalMap',
+        attributes: { aPosition: pc.SEMANTIC_POSITION },
+        vertexChunk: 'quadVS',
+        fragmentGLSL: /* glsl */ `
+            precision highp float;
+            uniform sampler2D sourceTexture;
+            varying vec2 uv0;
+
+            void main() {
+                vec4 info = texture2D(sourceTexture, uv0);
+                vec3 n = normalize(vec3(info.b, sqrt(max(0.0001, 1.0 - info.b * info.b - info.a * info.a)), info.a));
+                gl_FragColor = vec4(n * 0.5 + 0.5, 1.0);
+            }
+        `
+    });
+};
+
+const createWaterSimTargets = () => {
+    const res = waterFx.sim.res;
+    const createSimTexture = (name) => {
+        const formatsToTry = [pc.PIXELFORMAT_RGBA16F, pc.PIXELFORMAT_RGBA32F, pc.PIXELFORMAT_RGBA8];
+        for (let i = 0; i < formatsToTry.length; i++) {
+            const format = formatsToTry[i];
+            try {
+                return new pc.Texture(device, {
+                    name,
+                    width: res,
+                    height: res,
+                    mipmaps: false,
+                    format,
+                    minFilter: pc.FILTER_LINEAR,
+                    magFilter: pc.FILTER_LINEAR,
+                    addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+                    addressV: pc.ADDRESS_CLAMP_TO_EDGE
+                });
+            } catch (e) {
+            }
+        }
+        return new pc.Texture(device, {
+            name,
+            width: res,
+            height: res,
+            mipmaps: false,
+            format: pc.PIXELFORMAT_RGBA8,
+            minFilter: pc.FILTER_LINEAR,
+            magFilter: pc.FILTER_LINEAR,
+            addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+            addressV: pc.ADDRESS_CLAMP_TO_EDGE
+        });
+    };
+
+    const texA = createSimTexture('WaterSimA');
+    const texB = createSimTexture('WaterSimB');
+    const rtA = new pc.RenderTarget({ colorBuffer: texA, depth: false, flipY: !device.isWebGPU });
+    const rtB = new pc.RenderTarget({ colorBuffer: texB, depth: false, flipY: !device.isWebGPU });
+
+    const normalMapTex = new pc.Texture(device, {
+        name: 'WaterNormalMap',
+        width: res,
+        height: res,
+        mipmaps: false,
+        format: pc.PIXELFORMAT_RGBA8,
+        minFilter: pc.FILTER_LINEAR,
+        magFilter: pc.FILTER_LINEAR,
+        addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+        addressV: pc.ADDRESS_CLAMP_TO_EDGE
+    });
+    const normalMapRt = new pc.RenderTarget({ colorBuffer: normalMapTex, depth: false, flipY: !device.isWebGPU });
+
+    pc.drawQuadWithShader(device, rtA, waterFx.sim.clearShader);
+    pc.drawQuadWithShader(device, rtB, waterFx.sim.clearShader);
+    pc.drawQuadWithShader(device, normalMapRt, waterFx.sim.clearShader);
+
+    return {
+        simRts: [rtA, rtB],
+        simIndex: 0,
+        normalMapRt,
+        normalMapTex
+    };
+};
+
+const waterSimSwap = (leak) => {
+    leak.simIndex = 1 - leak.simIndex;
+};
+
+const waterSimSource = (leak) => leak.simRts[leak.simIndex].colorBuffer;
+const waterSimTarget = (leak) => leak.simRts[1 - leak.simIndex];
+
+const waterSimPass = (leak, shader) => {
+    device.scope.resolve('sourceTexture').setValue(waterSimSource(leak));
+    device.scope.resolve('delta').setValue(waterFx.sim.delta);
+    pc.drawQuadWithShader(device, waterSimTarget(leak), shader);
+    waterSimSwap(leak);
+};
+
+const waterSimDrop = (leak, centerUvX, centerUvY, radius, strength) => {
+    device.scope.resolve('sourceTexture').setValue(waterSimSource(leak));
+    device.scope.resolve('centerUv').setValue([centerUvX, centerUvY]);
+    device.scope.resolve('radius').setValue(radius);
+    device.scope.resolve('strength').setValue(strength);
+    pc.drawQuadWithShader(device, waterSimTarget(leak), waterFx.sim.dropShader);
+    waterSimSwap(leak);
+};
+
+const createIrregularPoolMesh = (radius = 1, vertexCount = 64) => {
+    const count = Math.max(24, Math.min(96, Math.floor(vertexCount)));
+    const positions = new Float32Array((count + 1) * 3);
+    const normals = new Float32Array((count + 1) * 3);
+    const uvs = new Float32Array((count + 1) * 2);
+    const indices = new Uint32Array(count * 3);
+
+    positions[0] = 0;
+    positions[1] = 0;
+    positions[2] = 0;
+    normals[0] = 0;
+    normals[1] = 1;
+    normals[2] = 0;
+    uvs[0] = 0.5;
+    uvs[1] = 0.5;
+
+    const angleOffset = Math.random() * Math.PI * 2;
+    const radiusX = radius * (0.92 + Math.random() * 0.38);
+    const radiusZ = radius * (0.82 + Math.random() * 0.48);
+    const phase1 = Math.random() * Math.PI * 2;
+    const phase2 = Math.random() * Math.PI * 2;
+    const phase3 = Math.random() * Math.PI * 2;
+
+    const baseR = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+        const t = i / count;
+        const a = angleOffset + t * Math.PI * 2;
+        const n = 1
+            + 0.08 * Math.sin(a * 2 + phase1)
+            + 0.04 * Math.sin(a * 5 + phase2)
+            + 0.03 * Math.sin(a * 9 + phase3);
+        baseR[i] = Math.max(0.65, n);
+    }
+
+    for (let pass = 0; pass < 3; pass++) {
+        const tmp = new Float32Array(count);
+        for (let i = 0; i < count; i++) {
+            const a = baseR[(i - 1 + count) % count];
+            const b = baseR[i];
+            const c = baseR[(i + 1) % count];
+            tmp[i] = (a + b + c) / 3;
+        }
+        baseR.set(tmp);
+    }
+
+    for (let i = 0; i < count; i++) {
+        const t = i / count;
+        const angle = angleOffset + t * Math.PI * 2;
+        const r = baseR[i];
+        const x = Math.cos(angle) * radiusX * r;
+        const z = Math.sin(angle) * radiusZ * r;
+
+        const vi = (i + 1) * 3;
+        positions[vi + 0] = x;
+        positions[vi + 1] = 0;
+        positions[vi + 2] = z;
+
+        normals[vi + 0] = 0;
+        normals[vi + 1] = 1;
+        normals[vi + 2] = 0;
+
+        const ui = (i + 1) * 2;
+        uvs[ui + 0] = x / (radiusX * 2) + 0.5;
+        uvs[ui + 1] = z / (radiusZ * 2) + 0.5;
+
+        const ii = i * 3;
+        indices[ii + 0] = 0;
+        indices[ii + 1] = i + 1;
+        indices[ii + 2] = ((i + 1) % count) + 1;
+    }
+
+    const mesh = new pc.Mesh(device);
+    mesh.clear(true, false);
+    mesh.setPositions(positions);
+    mesh.setNormals(normals);
+    mesh.setUvs(0, uvs);
+    mesh.setIndices(indices);
+    mesh.update(pc.PRIMITIVE_TRIANGLES);
+    mesh.aabb = new pc.BoundingBox(new pc.Vec3(0, 0, 0), new pc.Vec3(radiusX * 1.35, 0.05, radiusZ * 1.35));
+
+    return mesh;
+};
+
+const ensureWaterLeaks = () => {
+    if (waterFx.roots.length) return;
+
+    initWaterSimIfNeeded();
+
+    if (!waterFx.sprinklerMaterial) {
+        const mat = new pc.StandardMaterial();
+        mat.diffuse.set(0.55, 0.58, 0.62);
+        mat.specular.set(0.9, 0.9, 0.9);
+        mat.gloss = 0.92;
+        mat.metalness = 0.75;
+        mat.useMetalness = true;
+        mat.update();
+        waterFx.sprinklerMaterial = mat;
+    }
+    if (!waterFx.sprinklerAccentMaterial) {
+        const mat = new pc.StandardMaterial();
+        mat.diffuse.set(0.42, 0.05, 0.05);
+        mat.emissive.set(0.65, 0.08, 0.08);
+        mat.emissiveIntensity = 0.7;
+        mat.useLighting = false;
+        mat.update();
+        waterFx.sprinklerAccentMaterial = mat;
+    }
+
+    for (let i = 0; i < WATER_LEAK_POSITIONS.length; i++) {
+        const root = new pc.Entity(`WaterLeakRoot_${i}`);
+        root.setPosition(WATER_LEAK_POSITIONS[i]);
+        sceneRoot.addChild(root);
+        waterFx.roots.push(root);
+
+        const sprinkler = new pc.Entity(`SprinklerHead_${i}`);
+        sprinkler.setLocalPosition(0, 3.2, 0);
+        root.addChild(sprinkler);
+
+        const pipe = new pc.Entity(`SprinklerPipe_${i}`);
+        pipe.addComponent('render', { type: 'cylinder', castShadows: false, receiveShadows: false });
+        pipe.setLocalScale(0.06, 0.22, 0.06);
+        pipe.setLocalPosition(0, 0.16, 0);
+        pipe.render.material = waterFx.sprinklerMaterial;
+        sprinkler.addChild(pipe);
+
+        const body = new pc.Entity(`SprinklerBody_${i}`);
+        body.addComponent('render', { type: 'cylinder', castShadows: false, receiveShadows: false });
+        body.setLocalScale(0.16, 0.08, 0.16);
+        body.setLocalPosition(0, 0.03, 0);
+        body.render.material = waterFx.sprinklerMaterial;
+        sprinkler.addChild(body);
+
+        const ring = new pc.Entity(`SprinklerRing_${i}`);
+        ring.addComponent('render', { type: 'cylinder', castShadows: false, receiveShadows: false });
+        ring.setLocalScale(0.18, 0.015, 0.18);
+        ring.setLocalPosition(0, -0.03, 0);
+        ring.render.material = waterFx.sprinklerAccentMaterial;
+        sprinkler.addChild(ring);
+
+        const deflector = new pc.Entity(`SprinklerDeflector_${i}`);
+        deflector.addComponent('render', { type: 'cone', castShadows: false, receiveShadows: false });
+        deflector.setLocalScale(0.16, 0.06, 0.16);
+        deflector.setLocalPosition(0, -0.08, 0);
+        deflector.setLocalEulerAngles(180, 0, 0);
+        deflector.render.material = waterFx.sprinklerMaterial;
+        sprinkler.addChild(deflector);
+
+        const jet = createParticleLayer(root, `WaterJet_${i}`, new pc.Vec3(0, 3.2, 0), {
+            numParticles: 1400,
+            lifetime: 0.3,
+            rate: 0.0018,
+            rate2: 0.0024,
+            colorMap: assets.waterParticle.resource,
+            blendType: pc.BLEND_NORMAL,
+            emitterShape: pc.EMITTERSHAPE_SPHERE,
+            emitterRadius: 0.65,
+            emitterRadiusInner: 0.15,
+            scaleGraph: new pc.Curve([0, 0.02, 0.55, 0.018, 1, 0.012]),
+            alphaGraph: new pc.Curve([0, 0, 0.2, 0.26, 0.75, 0.22, 1, 0]),
+            colorGraph: new pc.CurveSet([
+                [0, 0.72, 1, 0.72],
+                [0, 0.9, 1, 0.9],
+                [0, 1, 1, 1]
+            ]),
+            localVelocityGraph: new pc.CurveSet([
+                [0, -0.45, 1, 0.45],
+                [0, -9.5, 1, -12.2],
+                [0, -0.45, 1, 0.45]
+            ]),
+            localVelocityGraph2: new pc.CurveSet([
+                [0, -0.7, 1, 0.7],
+                [0, -10.2, 1, -13.2],
+                [0, -0.7, 1, 0.7]
+            ]),
+            depthSoftening: 0.14,
+            alignToMotion: true
+        });
+        jet.enabled = false;
+
+        const splash = createParticleLayer(root, `WaterSplash_${i}`, new pc.Vec3(0, 0.02, 0), {
+            numParticles: 420,
+            lifetime: 0.8,
+            rate: 0.009,
+            rate2: 0.014,
+            colorMap: assets.waterParticle.resource,
+            blendType: pc.BLEND_NORMAL,
+            emitterShape: pc.EMITTERSHAPE_SPHERE,
+            emitterRadius: 0.32,
+            scaleGraph: new pc.Curve([0, 0.05, 0.55, 0.06, 1, 0]),
+            alphaGraph: new pc.Curve([0, 0, 0.2, 0.3, 0.7, 0.14, 1, 0]),
+            colorGraph: new pc.CurveSet([
+                [0, 0.72, 1, 0.72],
+                [0, 0.9, 1, 0.9],
+                [0, 1, 1, 1]
+            ]),
+            localVelocityGraph: new pc.CurveSet([
+                [0, -1.2, 1, 1.2],
+                [0, 2.0, 0.45, 4.2, 1, 0.4],
+                [0, -1.2, 1, 1.2]
+            ]),
+            localVelocityGraph2: new pc.CurveSet([
+                [0, -1.6, 1, 1.6],
+                [0, 2.5, 0.45, 5.0, 1, 0.5],
+                [0, -1.6, 1, 1.6]
+            ]),
+            depthSoftening: 0.12
+        });
+        splash.enabled = false;
+
+        const poolMesh = createIrregularPoolMesh(1, 72);
+        const pool = new pc.Entity(`WaterPool_${i}`);
+        pool.setLocalPosition(0, 0.02, 0);
+        pool.setLocalScale(0.5, 1, 0.5);
+        root.addChild(pool);
+
+        const poolMat = new pc.StandardMaterial();
+        poolMat.diffuse.set(0.06, 0.18, 0.22);
+        poolMat.specular.set(0.8, 0.85, 0.9);
+        poolMat.gloss = 0.92;
+        poolMat.metalness = 0;
+        poolMat.emissive.set(0.02, 0.07, 0.08);
+        poolMat.emissiveIntensity = 0.25;
+        poolMat.opacity = 0.35;
+        poolMat.blendType = pc.BLEND_NORMAL;
+        poolMat.useLighting = true;
+        poolMat.depthWrite = false;
+        poolMat.cull = pc.CULLFACE_NONE;
+
+        let sim = null;
+        if (waterFx.sim.supported) {
+            sim = createWaterSimTargets();
+            poolMat.normalMap = sim.normalMapTex;
+            poolMat.normalMapTiling = new pc.Vec2(1, 1);
+        } else {
+            poolMat.opacityMap = assets.waterParticle.resource;
+            poolMat.opacityMapChannel = 'a';
+        }
+        poolMat.update();
+        const poolMeshInstance = new pc.MeshInstance(poolMesh, poolMat);
+        poolMeshInstance.cull = false;
+        pool.addComponent('render', {
+            type: 'asset',
+            meshInstances: [poolMeshInstance],
+            castShadows: false,
+            receiveShadows: false
+        });
+
+        waterFx.leaks.push({
+            root,
+            sprinkler,
+            jet,
+            splash,
+            pool,
+            poolMat,
+            poolSize: 0.5,
+            poolTargetSize: 0.5,
+            windState: createWindState(0.35, 0),
+            simRts: sim?.simRts ?? null,
+            simIndex: sim?.simIndex ?? 0,
+            normalMapRt: sim?.normalMapRt ?? null,
+            normalMapTex: sim?.normalMapTex ?? null
+        });
+    }
+};
+
+const toggleWaterFx = () => {
+    if (!waterFx.enabled) ensureWaterLeaks();
+    waterFx.enabled = !waterFx.enabled;
+
+    for (let i = 0; i < waterFx.leaks.length; i++) {
+        const leak = waterFx.leaks[i];
+        leak.jet.enabled = waterFx.enabled;
+        leak.splash.enabled = waterFx.enabled;
+        leak.poolTargetSize = waterFx.enabled ? 4.8 : 0.5;
+    }
+    updateFxButtons();
+};
+
+app.on('update', (dt) => {
+    if (!waterFx.roots.length) return;
+
+    waterFx.time += dt;
+
+    for (let i = 0; i < waterFx.leaks.length; i++) {
+        const leak = waterFx.leaks[i];
+        const wind = updateWindState(leak.windState, dt);
+
+        if (leak.sprinkler) leak.sprinkler.setLocalPosition(wind.x * 0.55, 3.2, wind.z * 0.55);
+        if (leak.jet) leak.jet.setLocalPosition(wind.x * 0.55, 3.2, wind.z * 0.55);
+        if (leak.splash) leak.splash.setLocalPosition(wind.x * 0.22, 0.02, wind.z * 0.22);
+
+        leak.poolSize += (leak.poolTargetSize - leak.poolSize) * Math.min(1, dt * 0.35);
+        if (leak.pool) leak.pool.setLocalScale(leak.poolSize, 1, leak.poolSize);
+
+        if (leak.poolMat) {
+            const ripple = 0.5 + 0.5 * Math.sin((waterFx.time + i) * 1.8);
+            leak.poolMat.opacity = (waterFx.enabled ? 0.45 : 0.28) + ripple * 0.05;
+            leak.poolMat.emissiveIntensity = 0.18 + ripple * 0.12;
+            leak.poolMat.update();
+        }
+
+        if (waterFx.enabled && waterFx.sim.supported && leak.simRts && leak.normalMapRt) {
+            const poolSize = Math.max(0.5, leak.poolSize);
+            const cx = 0.5 + (wind.x * 0.55) / poolSize;
+            const cy = 0.5 + (wind.z * 0.55) / poolSize;
+
+            const iterations = 2;
+            for (let k = 0; k < iterations; k++) waterSimPass(leak, waterFx.sim.updateShader);
+
+            waterSimDrop(leak, cx + (Math.random() - 0.5) * 0.01, cy + (Math.random() - 0.5) * 0.01, 0.028, 0.28);
+            waterSimDrop(leak, cx + (Math.random() - 0.5) * 0.012, cy + (Math.random() - 0.5) * 0.012, 0.02, 0.18);
+
+            waterSimPass(leak, waterFx.sim.normalShader);
+
+            device.scope.resolve('sourceTexture').setValue(waterSimSource(leak));
+            pc.drawQuadWithShader(device, leak.normalMapRt, waterFx.sim.normalMapShader);
+        }
+    }
+});
+
 const ensureIncidentRoot = () => {
     if (!incidentFx.firePiles.length) {
         for (let i = 0; i < FIRE_PILE_POSITIONS.length; i++) {
@@ -2267,6 +2804,8 @@ fxStyle.textContent = `
     #fx-overlay button.smoke-btn.active { background: linear-gradient(180deg, rgba(118,128,142,0.92), rgba(55,61,72,0.94)); border-color: rgba(226,233,240,0.32); box-shadow: 0 0 20px rgba(206,212,218,0.22); }
     #fx-overlay button.alarm-btn:hover,
     #fx-overlay button.alarm-btn.active { background: linear-gradient(180deg, rgba(255,78,78,0.94), rgba(135,16,16,0.94)); border-color: rgba(255,176,176,0.44); box-shadow: 0 0 24px rgba(255,0,0,0.35); }
+    #fx-overlay button.water-btn:hover,
+    #fx-overlay button.water-btn.active { background: linear-gradient(180deg, rgba(84,170,255,0.92), rgba(14,66,120,0.92)); border-color: rgba(146,210,255,0.48); box-shadow: 0 0 22px rgba(84,170,255,0.32); }
     @media (max-width: 600px) {
         #fx-overlay { gap: 10px; bottom: 24px; }
         #fx-overlay button { width: 72px; height: 62px; font-size: 20px; }
@@ -2280,12 +2819,14 @@ fxOverlay.innerHTML = `
     <button class="fire-btn" id="btn-fire">🔥<span class="label">火焰</span></button>
     <button class="smoke-btn" id="btn-smoke">💨<span class="label">烟雾</span></button>
     <button class="alarm-btn" id="btn-alarm">🚨<span class="label">警报</span></button>
+    <button class="water-btn" id="btn-water">💧<span class="label">漏水</span></button>
 `;
 document.body.appendChild(fxOverlay);
 
 document.getElementById('btn-fire').addEventListener('click', toggleFireFx);
 document.getElementById('btn-smoke').addEventListener('click', toggleSmokeFx);
 document.getElementById('btn-alarm').addEventListener('click', toggleAlarmFx);
+document.getElementById('btn-water').addEventListener('click', toggleWaterFx);
 ensureIncidentRoot();
 applyIncidentVisualState();
 updateFxButtons();
@@ -2296,6 +2837,7 @@ app.on('destroy', () => {
     app.mouse.off(pc.EVENT_MOUSEDOWN, exitMouseDown);
     app.mouse.off(pc.EVENT_MOUSEDOWN, debugClickWorldPosition);
     stopAlarmAudio();
+    for (let i = 0; i < waterFx.roots.length; i++) waterFx.roots[i]?.destroy?.();
     fxOverlay.remove();
     fxStyle.remove();
 });
