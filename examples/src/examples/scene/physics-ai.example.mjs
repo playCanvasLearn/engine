@@ -46,7 +46,9 @@ const assets = {
         { url: './assets/scene/robot-worker/skybox/sky.png' },
         { type: pc.TEXTURETYPE_RGBP, mipmaps: false }
     ),
-    spark: new pc.Asset('spark', 'texture', { url: './assets/textures/spark.png' }, { srgb: true })
+    spark: new pc.Asset('spark', 'texture', { url: './assets/textures/spark.png' }, { srgb: true }),
+    snowflake: new pc.Asset('snowflake', 'texture', { url: './assets/textures/snowflake.png' }, { srgb: true }),
+    flameAtlas: new pc.Asset('flameAtlas', 'texture', { url: './assets/scene/robot-worker/firefx/explode3.png' }, { srgb: true })
 };
 
 const canvas = document.getElementById('application-canvas');
@@ -1610,157 +1612,507 @@ app.mouse.on(pc.EVENT_MOUSEMOVE, exitMouseMove);
 app.mouse.on(pc.EVENT_MOUSEDOWN, exitMouseDown);
 // ====== Fire / Smoke / Alarm Effects ======
 
-const spawnEffect = (config) => {
-    const pos = player.getPosition();
-    const e = new pc.Entity(config.name);
-    app.root.addChild(e);
-    e.setPosition(pos.x, pos.y + 0.2, pos.z);
+const FIRE_AUDIO_URL = './assets/scene/robot-worker/firefx/fire.mp3';
+const FIRE_PILE_POSITIONS = [
+    new pc.Vec3(1.35, ROBOT_Y + 0.03, -0.28),
+    new pc.Vec3(-1.75, ROBOT_Y + 0.03, -1.92)
+];
+const ALARM_BEACON_POSITION = new pc.Vec3(2.35, ROBOT_Y + 0.03, -2.15);
 
-    e.addComponent('particlesystem', {
-        numParticles: config.numParticles,
-        lifetime: config.lifetime,
-        rate: config.rate,
-        scaleGraph: config.scaleGraph,
-        colorGraph: config.colorGraph,
+const incidentFx = {
+    firePiles: [],
+    smokePiles: [],
+    alarmRoot: null,
+    alarmHousing: null,
+    beacon: null,
+    beaconMaterial: null,
+    beaconLight: null,
+    alarmAudio: null,
+    fireEnabled: false,
+    smokeEnabled: false,
+    alarmEnabled: false,
+    time: 0
+};
+
+const createParticleLayer = (parent, name, localPosition, options) => {
+    const entity = new pc.Entity(name);
+    parent.addChild(entity);
+    entity.setLocalPosition(localPosition);
+    entity.addComponent('particlesystem', Object.assign({
+        autoPlay: true,
+        loop: true,
+        lighting: false,
+        depthWrite: false,
+        alignToMotion: false,
+        blendType: pc.BLEND_ADDITIVEALPHA
+    }, options));
+    return entity;
+};
+
+const stopAlarmAudio = () => {
+    if (!incidentFx.alarmAudio) return;
+    incidentFx.alarmAudio.pause();
+    incidentFx.alarmAudio.currentTime = 0;
+};
+
+const playAlarmAudio = () => {
+    if (!incidentFx.alarmAudio) {
+        const audio = new Audio(FIRE_AUDIO_URL);
+        audio.loop = true;
+        audio.preload = 'auto';
+        audio.volume = 0.45;
+        incidentFx.alarmAudio = audio;
+    }
+
+    const playPromise = incidentFx.alarmAudio.play();
+    if (playPromise?.catch) {
+        playPromise.catch(() => {
+            // Ignore autoplay gating until the next user interaction.
+        });
+    }
+};
+
+const updateFxButtons = () => {
+    const fireBtn = document.getElementById('btn-fire');
+    const smokeBtn = document.getElementById('btn-smoke');
+    const alarmBtn = document.getElementById('btn-alarm');
+    if (fireBtn) fireBtn.classList.toggle('active', incidentFx.fireEnabled);
+    if (smokeBtn) smokeBtn.classList.toggle('active', incidentFx.smokeEnabled);
+    if (alarmBtn) alarmBtn.classList.toggle('active', incidentFx.alarmEnabled);
+};
+
+const destroyIncidentRootIfIdle = () => {
+    if (incidentFx.fireEnabled || incidentFx.smokeEnabled || incidentFx.alarmEnabled) return;
+    stopAlarmAudio();
+    for (let i = 0; i < incidentFx.firePiles.length; i++) {
+        incidentFx.firePiles[i].root?.destroy?.();
+    }
+    if (incidentFx.alarmRoot?.destroy) incidentFx.alarmRoot.destroy();
+    incidentFx.firePiles.length = 0;
+    incidentFx.smokePiles.length = 0;
+    incidentFx.alarmRoot = null;
+    incidentFx.alarmHousing = null;
+    incidentFx.beacon = null;
+    incidentFx.beaconMaterial = null;
+    incidentFx.beaconLight = null;
+    incidentFx.time = 0;
+};
+
+const createClassicFlamePile = (root) => {
+    const flame = createParticleLayer(root, 'ClassicFlame', new pc.Vec3(0, 0.02, 0), {
+        numParticles: 90,
+        lifetime: 0.55,
+        rate: 0.018,
+        rate2: 0.024,
         colorMap: assets.spark.resource,
-        localVelocityGraph: config.localVelocity,
-        localVelocityGraph2: config.localVelocity2,
-        emitterExtents: config.emitterExtents,
-        emitterShape: config.emitterShape ?? pc.EMITTERSHAPE_BOX,
-        emitterRadius: config.emitterRadius ?? 0,
-        loop: false,
-        autoPlay: true
-    });
-
-    setTimeout(() => {
-        if (e?.destroy) e.destroy();
-    }, config.destroyDelay);
-};
-
-const spawnFire = () => {
-    spawnEffect({
-        name: 'fire',
-        numParticles: 80,
-        lifetime: 2,
-        rate: 0.02,
-        scaleGraph: new pc.Curve([0, 0.1, 0.3, 0.4, 0.6, 0.5, 1, 0.3]),
+        emitterShape: pc.EMITTERSHAPE_SPHERE,
+        emitterRadius: 0.08,
+        emitterRadiusInner: 0.02,
+        alignToMotion: true,
+        scaleGraph: new pc.Curve([0, 0.16, 0.35, 0.36, 0.8, 0.8, 1, 0.3]),
+        alphaGraph: new pc.Curve([0, 0.82, 0.72, 0.38, 1, 0.12]),
         colorGraph: new pc.CurveSet([
-            [0, 1, 0.2, 1, 0.4, 1, 0.6, 0.8, 0.8, 0.3, 1, 0],
-            [0, 0.6, 0.2, 0.8, 0.4, 0.6, 0.6, 0.3, 0.8, 0.1, 1, 0],
-            [0, 0, 0.2, 0, 0.4, 0, 0.6, 0, 0.8, 0, 1, 0]
+            [0, 1, 0.5, 1, 1, 0.05],
+            [0, 0.54, 0.5, 0.34, 1, 0],
+            [0, 0, 1, 0]
         ]),
-        localVelocity: new pc.CurveSet([
-            [0, 0, 0.5, 0.5, 1, -0.5],
-            [0, 2, 0.5, 4, 1, 6],
-            [0, 0, 0.5, 0.5, 1, -0.5]
-        ]),
-        localVelocity2: new pc.CurveSet([
-            [0, 0, 0.5, -0.5, 1, 0.5],
-            [0, 2, 0.5, 4, 1, 6],
-            [0, 0, 0.5, -0.5, 1, 0.5]
-        ]),
-        emitterExtents: new pc.Vec3(0.3, 0.1, 0.3),
-        destroyDelay: 3000
-    });
-};
-
-const spawnSmoke = () => {
-    spawnEffect({
-        name: 'smoke',
-        numParticles: 40,
-        lifetime: 3,
-        rate: 0.05,
-        scaleGraph: new pc.Curve([0, 0.1, 0.3, 0.5, 0.6, 1, 1, 1.5]),
-        colorGraph: new pc.CurveSet([
-            [0, 0.5, 0.3, 0.5, 0.6, 0.4, 0.8, 0.2, 1, 0],
-            [0, 0.5, 0.3, 0.5, 0.6, 0.4, 0.8, 0.2, 1, 0],
-            [0, 0.5, 0.3, 0.5, 0.6, 0.4, 0.8, 0.2, 1, 0]
-        ]),
-        localVelocity: new pc.CurveSet([
-            [0, 0, 1, 0.8],
-            [0, 1, 1, 3],
-            [0, 0, 1, 0.8]
-        ]),
-        localVelocity2: new pc.CurveSet([
-            [0, 0, 1, -0.8],
-            [0, 1, 1, 3],
-            [0, 0, 1, -0.8]
-        ]),
-        emitterExtents: new pc.Vec3(0.5, 0.1, 0.5),
-        destroyDelay: 5000
-    });
-};
-
-const spawnAlarm = () => {
-    const charPos = player.getPosition();
-    const e = new pc.Entity('alarm');
-    app.root.addChild(e);
-    e.setPosition(charPos.x, charPos.y + 0.5, charPos.z);
-
-    e.addComponent('particlesystem', {
-        numParticles: 150,
-        lifetime: 1.2,
-        rate: 0.006,
-        scaleGraph: new pc.Curve([0, 0.1, 0.5, 0.4, 1, 0.1]),
-        colorGraph: new pc.CurveSet([
-            [0, 1, 0.3, 1, 1, 0],
-            [0, 0, 0.3, 0.3, 1, 0],
-            [0, 0, 0.3, 0, 1, 0]
-        ]),
-        colorMap: assets.spark.resource,
         localVelocityGraph: new pc.CurveSet([
-            [0, 0, 1, 6],
-            [0, 4, 1, -4],
-            [0, 0, 1, 6]
+            [0, 0.08, 1, 0.08],
+            [0, 2.8, 1, 4.9],
+            [0, 0.08, 1, 0.08]
         ]),
         localVelocityGraph2: new pc.CurveSet([
-            [0, 0, 1, -6],
-            [0, 4, 1, -4],
-            [0, 0, 1, -6]
+            [0, -0.08, 1, -0.08],
+            [0, 2.8, 1, 4.9],
+            [0, -0.08, 1, -0.08]
         ]),
-        emitterShape: pc.EMITTERSHAPE_SPHERE,
-        emitterRadius: 0.1,
-        loop: false,
-        autoPlay: true
+        radialSpeedGraph: new pc.Curve([0, -4.2]),
+        radialSpeedGraph2: new pc.Curve([0, 0.1]),
+        depthSoftening: 0.06
     });
 
-    const lightEntity = new pc.Entity('alarm-light');
-    lightEntity.addComponent('light', {
+    const light = new pc.Entity('ClassicFlameLight');
+    light.addComponent('light', {
         type: 'point',
-        color: new pc.Color(1, 0, 0),
-        intensity: 8,
-        range: 8,
+        color: new pc.Color(1, 0.5, 0.18),
+        intensity: 5.2,
+        range: 5.6,
         castShadows: false
     });
-    lightEntity.setPosition(charPos.x, charPos.y + 1, charPos.z);
-    app.root.addChild(lightEntity);
+    light.setLocalPosition(0, 0.65, 0);
+    light.enabled = false;
+    root.addChild(light);
 
-    let elapsed = 0;
-    const onUpdate = (dt) => {
-        elapsed += dt;
-        const flash = Math.sin(elapsed * 20) * 0.5 + 0.5;
-        lightEntity.light.intensity = flash * 8;
-        if (elapsed > 2) {
-            app.off('update', onUpdate);
-            if (lightEntity?.destroy) lightEntity.destroy();
-            if (e?.destroy) e.destroy();
-        }
-    };
-    app.on('update', onUpdate);
+    flame.enabled = false;
+    return { root, type: 'classic', primary: flame, secondary: null, embers: null, fireLight: light };
 };
+
+const createFireballFlamePile = (root) => {
+    const fireCore = createParticleLayer(root, 'FlameCore', new pc.Vec3(0, 0.05, 0), {
+        numParticles: 160,
+        lifetime: 0.9,
+        rate: 0.012,
+        rate2: 0.016,
+        emitterShape: pc.EMITTERSHAPE_SPHERE,
+        emitterRadius: 0.12,
+        emitterRadiusInner: 0.02,
+        colorMap: assets.flameAtlas.resource,
+        animLoop: true,
+        animTilesX: 8,
+        animTilesY: 8,
+        animNumFrames: 64,
+        animSpeed: 1.5,
+        scaleGraph: new pc.Curve([0, 0.08, 0.22, 0.34, 0.6, 0.52, 1, 0.08]),
+        alphaGraph: new pc.Curve([0, 0, 0.08, 0.85, 0.42, 1, 1, 0]),
+        colorGraph: new pc.CurveSet([
+            [0, 1, 0.22, 1, 0.55, 0.95, 0.82, 0.5, 1, 0.15],
+            [0, 0.95, 0.22, 0.74, 0.55, 0.4, 0.82, 0.18, 1, 0.05],
+            [0, 0.55, 0.22, 0.12, 0.55, 0.04, 0.82, 0, 1, 0]
+        ]),
+        velocityGraph: new pc.CurveSet([
+            [0, 0, 0.35, 0.1, 0.7, 0.16, 1, 0.05],
+            [0, 0.3, 0.18, 1.4, 0.5, 2.6, 1, 3.8],
+            [0, 0, 0.35, -0.1, 0.7, -0.16, 1, -0.05]
+        ]),
+        velocityGraph2: new pc.CurveSet([
+            [0, 0, 0.35, -0.1, 0.7, -0.16, 1, -0.05],
+            [0, 0.45, 0.18, 1.8, 0.5, 3.1, 1, 4.3],
+            [0, 0, 0.35, 0.1, 0.7, 0.16, 1, 0.05]
+        ]),
+        depthSoftening: 0.08
+    });
+
+    const fireBurst = createParticleLayer(root, 'FlameBurst', new pc.Vec3(0, 0.18, 0), {
+        numParticles: 120,
+        lifetime: 1.05,
+        rate: 0.024,
+        rate2: 0.028,
+        emitterShape: pc.EMITTERSHAPE_SPHERE,
+        emitterRadius: 0.2,
+        emitterRadiusInner: 0.04,
+        colorMap: assets.flameAtlas.resource,
+        animLoop: true,
+        animTilesX: 8,
+        animTilesY: 8,
+        animNumFrames: 64,
+        animSpeed: 1,
+        scaleGraph: new pc.Curve([0, 0.04, 0.2, 0.18, 0.55, 0.52, 0.92, 0.1, 1, 0]),
+        alphaGraph: new pc.Curve([0, 0, 0.12, 0.5, 0.35, 0.85, 0.72, 0.35, 1, 0]),
+        colorGraph: new pc.CurveSet([
+            [0, 1, 0.35, 1, 0.72, 0.62, 1, 0.12],
+            [0, 0.82, 0.35, 0.45, 0.72, 0.18, 1, 0.04],
+            [0, 0.25, 0.35, 0.06, 0.72, 0, 1, 0]
+        ]),
+        velocityGraph: new pc.CurveSet([
+            [0, 0, 0.5, 0.18, 1, 0],
+            [0, 0.2, 0.2, 1.2, 0.55, 2.2, 1, 3.2],
+            [0, 0, 0.5, -0.18, 1, 0]
+        ]),
+        velocityGraph2: new pc.CurveSet([
+            [0, 0, 0.5, -0.18, 1, 0],
+            [0, 0.35, 0.2, 1.7, 0.55, 2.7, 1, 3.6],
+            [0, 0, 0.5, 0.18, 1, 0]
+        ]),
+        depthSoftening: 0.08
+    });
+
+    const embers = createParticleLayer(root, 'FireEmbers', new pc.Vec3(0, 0.1, 0), {
+        numParticles: 48,
+        lifetime: 1.1,
+        rate: 0.07,
+        rate2: 0.09,
+        emitterShape: pc.EMITTERSHAPE_SPHERE,
+        emitterRadius: 0.15,
+        colorMap: assets.spark.resource,
+        scaleGraph: new pc.Curve([0, 0.03, 0.55, 0.05, 1, 0]),
+        alphaGraph: new pc.Curve([0, 0, 0.15, 1, 1, 0]),
+        colorGraph: new pc.CurveSet([
+            [0, 1, 0.45, 1, 1, 0.3],
+            [0, 0.65, 0.45, 0.35, 1, 0.06],
+            [0, 0.1, 0.45, 0.02, 1, 0]
+        ]),
+        localVelocityGraph: new pc.CurveSet([
+            [0, -0.35, 1, 0.35],
+            [0, 1.6, 0.5, 2.8, 1, 1.2],
+            [0, -0.35, 1, 0.35]
+        ]),
+        localVelocityGraph2: new pc.CurveSet([
+            [0, -0.55, 1, 0.55],
+            [0, 2.0, 0.5, 3.4, 1, 1.5],
+            [0, -0.55, 1, 0.55]
+        ]),
+        depthSoftening: 0.05
+    });
+
+    const light = new pc.Entity('FireballFlameLight');
+    light.addComponent('light', {
+        type: 'point',
+        color: new pc.Color(1, 0.48, 0.16),
+        intensity: 6,
+        range: 7.5,
+        castShadows: false
+    });
+    light.setLocalPosition(0, 0.7, 0);
+    light.enabled = false;
+    root.addChild(light);
+
+    fireCore.enabled = false;
+    fireBurst.enabled = false;
+    embers.enabled = false;
+    return { root, type: 'fireball', primary: fireCore, secondary: fireBurst, embers, fireLight: light };
+};
+
+const createSmokePile = (root, heightScale = 1) => {
+    const smokeBase = createParticleLayer(root, 'SmokeBase', new pc.Vec3(0, 0.26 * heightScale, 0), {
+        numParticles: 120,
+        lifetime: 4.2,
+        rate: 0.04,
+        rate2: 0.045,
+        emitterShape: pc.EMITTERSHAPE_SPHERE,
+        emitterRadius: 0.16,
+        emitterRadiusInner: 0.04,
+        colorMap: assets.snowflake.resource,
+        blendType: pc.BLEND_NORMAL,
+        scaleGraph: new pc.Curve([0, 0.18, 0.24, 0.55, 0.7, 1.25, 1, 1.8]),
+        alphaGraph: new pc.Curve([0, 0, 0.08, 0.1, 0.3, 0.35, 0.7, 0.2, 1, 0]),
+        colorGraph: new pc.CurveSet([
+            [0, 0.16, 0.3, 0.21, 0.7, 0.42, 1, 0.6],
+            [0, 0.16, 0.3, 0.21, 0.7, 0.42, 1, 0.6],
+            [0, 0.16, 0.3, 0.21, 0.7, 0.42, 1, 0.6]
+        ]),
+        localVelocityGraph: new pc.CurveSet([
+            [0, -0.2, 0.5, 0.25, 1, 0.45],
+            [0, 0.55, 0.45, 1.65, 1, 2.35],
+            [0, -0.2, 0.5, 0.25, 1, 0.45]
+        ]),
+        localVelocityGraph2: new pc.CurveSet([
+            [0, -0.45, 0.5, -0.1, 1, 0.2],
+            [0, 0.85, 0.45, 2.1, 1, 2.9],
+            [0, -0.45, 0.5, -0.1, 1, 0.2]
+        ]),
+        depthSoftening: 0.12
+    });
+
+    const smokePlume = createParticleLayer(root, 'SmokePlume', new pc.Vec3(0, 0.55 * heightScale, 0), {
+        numParticles: 90,
+        lifetime: 5.6,
+        rate: 0.07,
+        rate2: 0.08,
+        emitterShape: pc.EMITTERSHAPE_SPHERE,
+        emitterRadius: 0.3,
+        colorMap: assets.snowflake.resource,
+        blendType: pc.BLEND_NORMAL,
+        scaleGraph: new pc.Curve([0, 0.35, 0.35, 0.95, 0.75, 2.2, 1, 2.9]),
+        alphaGraph: new pc.Curve([0, 0, 0.12, 0.08, 0.35, 0.24, 0.82, 0.12, 1, 0]),
+        colorGraph: new pc.CurveSet([
+            [0, 0.3, 0.25, 0.36, 0.7, 0.58, 1, 0.72],
+            [0, 0.3, 0.25, 0.36, 0.7, 0.58, 1, 0.72],
+            [0, 0.3, 0.25, 0.36, 0.7, 0.58, 1, 0.72]
+        ]),
+        localVelocityGraph: new pc.CurveSet([
+            [0, -0.32, 0.5, 0.12, 1, 0.58],
+            [0, 0.7, 0.45, 1.7, 1, 2.6],
+            [0, -0.32, 0.5, 0.12, 1, 0.58]
+        ]),
+        localVelocityGraph2: new pc.CurveSet([
+            [0, -0.6, 0.5, -0.12, 1, 0.32],
+            [0, 1.0, 0.45, 2.25, 1, 3.05],
+            [0, -0.6, 0.5, -0.12, 1, 0.32]
+        ]),
+        depthSoftening: 0.16
+    });
+
+    smokeBase.enabled = false;
+    smokePlume.enabled = false;
+    return { smokeBase, smokePlume };
+};
+
+const ensureIncidentRoot = () => {
+    if (incidentFx.firePiles.length || incidentFx.alarmRoot) return;
+
+    for (let i = 0; i < FIRE_PILE_POSITIONS.length; i++) {
+        const root = new pc.Entity(`IncidentFirePile_${i}`);
+        root.setPosition(FIRE_PILE_POSITIONS[i]);
+        sceneRoot.addChild(root);
+
+        const firePile = i === 0 ? createClassicFlamePile(root) : createFireballFlamePile(root);
+        const smokePile = createSmokePile(root, i === 0 ? 0.9 : 1.1);
+        incidentFx.firePiles.push(firePile);
+        incidentFx.smokePiles.push(smokePile);
+    }
+
+    const alarmRoot = new pc.Entity('AlarmRoot');
+    alarmRoot.setPosition(ALARM_BEACON_POSITION);
+    sceneRoot.addChild(alarmRoot);
+    incidentFx.alarmRoot = alarmRoot;
+
+    const housing = new pc.Entity('AlarmHousing');
+    housing.addComponent('render', {
+        type: 'box',
+        castShadows: false,
+        receiveShadows: false
+    });
+    housing.setLocalScale(0.22, 0.08, 0.12);
+    housing.setLocalPosition(0, 2.0, 0);
+    alarmRoot.addChild(housing);
+    incidentFx.alarmHousing = housing;
+
+    const housingMaterial = new pc.StandardMaterial();
+    housingMaterial.diffuse.set(0.12, 0.12, 0.14);
+    housingMaterial.emissive.set(0.05, 0.05, 0.05);
+    housingMaterial.useLighting = false;
+    housingMaterial.update();
+    housing.render.material = housingMaterial;
+
+    const beacon = new pc.Entity('AlarmBeacon');
+    beacon.addComponent('render', {
+        type: 'sphere',
+        castShadows: false,
+        receiveShadows: false
+    });
+    beacon.setLocalPosition(0, 2.08, 0);
+    beacon.setLocalScale(0.11, 0.07, 0.11);
+    alarmRoot.addChild(beacon);
+
+    const beaconMaterial = new pc.StandardMaterial();
+    beaconMaterial.diffuse.set(0.35, 0.02, 0.02);
+    beaconMaterial.emissive.set(1, 0.08, 0.08);
+    beaconMaterial.emissiveIntensity = 0.2;
+    beaconMaterial.useLighting = false;
+    beaconMaterial.update();
+    beacon.render.material = beaconMaterial;
+    beacon.enabled = false;
+    incidentFx.beacon = beacon;
+    incidentFx.beaconMaterial = beaconMaterial;
+
+    const beaconLight = new pc.Entity('AlarmBeaconLight');
+    beaconLight.addComponent('light', {
+        type: 'point',
+        color: new pc.Color(1, 0.08, 0.08),
+        intensity: 0.5,
+        range: 11,
+        castShadows: false
+    });
+    beaconLight.setLocalPosition(0, 2.08, 0);
+    beaconLight.enabled = false;
+    alarmRoot.addChild(beaconLight);
+    incidentFx.beaconLight = beaconLight;
+
+    if (cameraEntity?.camera?.requestSceneDepthMap) {
+        cameraEntity.camera.requestSceneDepthMap(true);
+    }
+};
+
+const applyIncidentVisualState = () => {
+    if (!incidentFx.firePiles.length && !incidentFx.alarmRoot) return;
+
+    for (let i = 0; i < incidentFx.firePiles.length; i++) {
+        const pile = incidentFx.firePiles[i];
+        pile.primary.enabled = incidentFx.fireEnabled;
+        if (pile.secondary) pile.secondary.enabled = incidentFx.fireEnabled;
+        if (pile.embers) pile.embers.enabled = incidentFx.fireEnabled;
+        if (pile.fireLight) pile.fireLight.enabled = incidentFx.fireEnabled;
+    }
+
+    for (let i = 0; i < incidentFx.smokePiles.length; i++) {
+        const smoke = incidentFx.smokePiles[i];
+        smoke.smokeBase.enabled = incidentFx.smokeEnabled;
+        smoke.smokePlume.enabled = incidentFx.smokeEnabled;
+    }
+
+    if (incidentFx.beacon) incidentFx.beacon.enabled = incidentFx.alarmEnabled;
+    if (incidentFx.beaconLight) incidentFx.beaconLight.enabled = incidentFx.alarmEnabled;
+
+    for (let i = 0; i < incidentFx.smokePiles.length; i++) {
+        const smoke = incidentFx.smokePiles[i];
+        if (smoke.smokeBase?.particlesystem) {
+            smoke.smokeBase.particlesystem.rate = incidentFx.fireEnabled ? 0.03 : 0.045;
+            smoke.smokeBase.particlesystem.rate2 = incidentFx.fireEnabled ? 0.036 : 0.05;
+        }
+        if (smoke.smokePlume?.particlesystem) {
+            smoke.smokePlume.particlesystem.rate = incidentFx.fireEnabled ? 0.06 : 0.08;
+            smoke.smokePlume.particlesystem.rate2 = incidentFx.fireEnabled ? 0.07 : 0.09;
+        }
+    }
+
+    if (incidentFx.alarmEnabled) {
+        playAlarmAudio();
+    } else {
+        stopAlarmAudio();
+    }
+};
+
+const toggleFireFx = () => {
+    if (!incidentFx.fireEnabled) ensureIncidentRoot();
+    incidentFx.fireEnabled = !incidentFx.fireEnabled;
+    if (incidentFx.fireEnabled && !incidentFx.smokeEnabled) incidentFx.smokeEnabled = true;
+    applyIncidentVisualState();
+    updateFxButtons();
+    destroyIncidentRootIfIdle();
+};
+
+const toggleSmokeFx = () => {
+    if (!incidentFx.smokeEnabled) ensureIncidentRoot();
+    incidentFx.smokeEnabled = !incidentFx.smokeEnabled;
+    applyIncidentVisualState();
+    updateFxButtons();
+    destroyIncidentRootIfIdle();
+};
+
+const toggleAlarmFx = () => {
+    if (!incidentFx.alarmEnabled) ensureIncidentRoot();
+    incidentFx.alarmEnabled = !incidentFx.alarmEnabled;
+    applyIncidentVisualState();
+    updateFxButtons();
+    destroyIncidentRootIfIdle();
+};
+
+app.on('update', (dt) => {
+    if (!incidentFx.firePiles.length && !incidentFx.alarmRoot) return;
+
+    incidentFx.time += dt;
+
+    for (let i = 0; i < incidentFx.firePiles.length; i++) {
+        const pile = incidentFx.firePiles[i];
+        if (!incidentFx.fireEnabled || !pile.fireLight?.light) continue;
+        const offset = i * 0.9;
+        const flicker =
+            0.55 +
+            Math.abs(Math.sin(incidentFx.time * (12.0 + i * 1.8) + offset)) * 0.72 +
+            Math.abs(Math.sin(incidentFx.time * (19.4 + i * 2.1) + 0.6 + offset)) * 0.42;
+        pile.fireLight.light.intensity = (pile.type === 'classic' ? 2.2 : 2.8) + flicker * 2.8;
+        pile.fireLight.light.range = (pile.type === 'classic' ? 4.8 : 6.2) + flicker * 0.9;
+    }
+
+    if (incidentFx.alarmEnabled && incidentFx.beaconMaterial && incidentFx.beaconLight?.light) {
+        const strobe = Math.pow(Math.max(0, Math.sin(incidentFx.time * 16.0)), 2);
+        incidentFx.beaconMaterial.emissiveIntensity = 0.5 + strobe * 3.5;
+        incidentFx.beaconMaterial.update();
+        incidentFx.beaconLight.light.intensity = 0.3 + strobe * 11.5;
+    } else if (incidentFx.beaconMaterial && incidentFx.beaconLight?.light) {
+        incidentFx.beaconMaterial.emissiveIntensity = 0.2;
+        incidentFx.beaconMaterial.update();
+        incidentFx.beaconLight.light.intensity = 0.5;
+    }
+});
 
 // ====== FX UI ======
 const fxStyle = document.createElement('style');
 fxStyle.textContent = `
-    #fx-overlay { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px; pointer-events: none; z-index: 10010; }
-    #fx-overlay button { pointer-events: auto; background: rgba(40,40,50,0.85); color: #fff; border: none; border-radius: 50%; width: 64px; height: 64px; font-size: 22px; cursor: pointer; backdrop-filter: blur(8px); transition: all 0.15s; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    #fx-overlay { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; pointer-events: none; z-index: 10010; }
+    #fx-overlay button { pointer-events: auto; background: rgba(18,24,34,0.88); color: #fff; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; width: 88px; height: 72px; font-size: 24px; cursor: pointer; backdrop-filter: blur(10px); transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; box-shadow: 0 10px 26px rgba(0,0,0,0.28); }
     #fx-overlay button:hover { transform: scale(1.1); background: rgba(60,60,80,0.9); }
-    #fx-overlay button .label { font-size: 10px; opacity: 0.6; }
-    #fx-overlay button.fire-btn:hover { background: rgba(200,80,30,0.85); box-shadow: 0 0 20px rgba(255,100,0,0.4); }
-    #fx-overlay button.smoke-btn:hover { background: rgba(120,120,130,0.85); box-shadow: 0 0 20px rgba(180,180,180,0.3); }
-    #fx-overlay button.alarm-btn:hover { background: rgba(200,30,30,0.85); box-shadow: 0 0 20px rgba(255,0,0,0.4); }
+    #fx-overlay button .label { font-size: 11px; letter-spacing: 0.4px; opacity: 0.72; }
+    #fx-overlay button.active { transform: translateY(-3px); }
+    #fx-overlay button.fire-btn:hover,
+    #fx-overlay button.fire-btn.active { background: linear-gradient(180deg, rgba(255,137,58,0.92), rgba(140,42,6,0.92)); border-color: rgba(255,183,111,0.55); box-shadow: 0 0 24px rgba(255,115,0,0.35); }
+    #fx-overlay button.smoke-btn:hover,
+    #fx-overlay button.smoke-btn.active { background: linear-gradient(180deg, rgba(118,128,142,0.92), rgba(55,61,72,0.94)); border-color: rgba(226,233,240,0.32); box-shadow: 0 0 20px rgba(206,212,218,0.22); }
+    #fx-overlay button.alarm-btn:hover,
+    #fx-overlay button.alarm-btn.active { background: linear-gradient(180deg, rgba(255,78,78,0.94), rgba(135,16,16,0.94)); border-color: rgba(255,176,176,0.44); box-shadow: 0 0 24px rgba(255,0,0,0.35); }
     @media (max-width: 600px) {
-        #fx-overlay button { width: 52px; height: 52px; font-size: 18px; }
+        #fx-overlay { gap: 10px; bottom: 24px; }
+        #fx-overlay button { width: 72px; height: 62px; font-size: 20px; }
     }
 `;
 document.head.appendChild(fxStyle);
@@ -1768,20 +2120,22 @@ document.head.appendChild(fxStyle);
 const fxOverlay = document.createElement('div');
 fxOverlay.id = 'fx-overlay';
 fxOverlay.innerHTML = `
-    <button class="fire-btn" id="btn-fire">🔥<span class="label">火</span></button>
-    <button class="smoke-btn" id="btn-smoke">💨<span class="label">烟</span></button>
-    <button class="alarm-btn" id="btn-alarm">🚨<span class="label">报警器</span></button>
+    <button class="fire-btn" id="btn-fire">🔥<span class="label">火焰</span></button>
+    <button class="smoke-btn" id="btn-smoke">💨<span class="label">烟雾</span></button>
+    <button class="alarm-btn" id="btn-alarm">🚨<span class="label">警报</span></button>
 `;
 document.body.appendChild(fxOverlay);
 
-document.getElementById('btn-fire').addEventListener('click', spawnFire);
-document.getElementById('btn-smoke').addEventListener('click', spawnSmoke);
-document.getElementById('btn-alarm').addEventListener('click', spawnAlarm);
+document.getElementById('btn-fire').addEventListener('click', toggleFireFx);
+document.getElementById('btn-smoke').addEventListener('click', toggleSmokeFx);
+document.getElementById('btn-alarm').addEventListener('click', toggleAlarmFx);
+updateFxButtons();
 
 // --- Merge cleanups ---
 app.on('destroy', () => {
     app.mouse.off(pc.EVENT_MOUSEMOVE, exitMouseMove);
     app.mouse.off(pc.EVENT_MOUSEDOWN, exitMouseDown);
+    stopAlarmAudio();
     fxOverlay.remove();
     fxStyle.remove();
 });
