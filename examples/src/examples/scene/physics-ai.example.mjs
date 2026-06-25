@@ -1658,8 +1658,13 @@ const FIRE_PILE_POSITIONS = [
     new pc.Vec3(1.35, ROBOT_Y + 0.03, -1.92)
 ];
 const ALARM_BEACON_POSITION = new pc.Vec3(4.35, -1.9, -2.15);
+const SPRINKLER_CENTER_POSITION = new pc.Vec3(
+    (FIRE_PILE_POSITIONS[0].x + FIRE_PILE_POSITIONS[1].x) * 0.5,
+    ROBOT_Y + 0.03,
+    (FIRE_PILE_POSITIONS[0].z + FIRE_PILE_POSITIONS[1].z) * 0.5
+);
 const WATER_LEAK_POSITIONS = [
-    new pc.Vec3(-0.35, ROBOT_Y + 0.03, 1.65)
+    SPRINKLER_CENTER_POSITION
 ];
 
 const incidentFx = {
@@ -2070,13 +2075,13 @@ const initWaterSimIfNeeded = () => {
     waterFx.sim.supported = !device.isWebGPU;
     if (!waterFx.sim.supported) return;
 
-    const glslHeader = 'precision highp float;\\n';
+    const glslHeader = 'precision highp float;\n';
 
     waterFx.sim.clearShader = pc.ShaderUtils.createShader(device, {
         uniqueName: 'WaterSimClear',
         attributes: { aPosition: pc.SEMANTIC_POSITION },
         vertexChunk: 'quadVS',
-        fragmentGLSL: `${glslHeader}varying vec2 uv0;\\nvoid main() { gl_FragColor = vec4(0.0); }`
+        fragmentGLSL: `${glslHeader}varying vec2 uv0;\nvoid main() { gl_FragColor = vec4(0.0); }`
     });
 
     waterFx.sim.updateShader = pc.ShaderUtils.createShader(device, {
@@ -2419,12 +2424,12 @@ const ensureWaterLeaks = () => {
                 [0, 0.9, 1, 0.9],
                 [0, 1, 1, 1]
             ]),
-            localVelocityGraph: new pc.CurveSet([
+            velocityGraph: new pc.CurveSet([
                 [0, -0.45, 1, 0.45],
                 [0, -9.5, 1, -12.2],
                 [0, -0.45, 1, 0.45]
             ]),
-            localVelocityGraph2: new pc.CurveSet([
+            velocityGraph2: new pc.CurveSet([
                 [0, -0.7, 1, 0.7],
                 [0, -10.2, 1, -13.2],
                 [0, -0.7, 1, 0.7]
@@ -2439,26 +2444,26 @@ const ensureWaterLeaks = () => {
             lifetime: 0.8,
             rate: 0.009,
             rate2: 0.014,
-            colorMap: assets.waterParticle.resource,
+            colorMap: assets.snowflake.resource,
             blendType: pc.BLEND_NORMAL,
             emitterShape: pc.EMITTERSHAPE_SPHERE,
-            emitterRadius: 0.32,
-            scaleGraph: new pc.Curve([0, 0.05, 0.55, 0.06, 1, 0]),
+            emitterRadius: 0.34,
+            scaleGraph: new pc.Curve([0, 0.03, 0.55, 0.04, 1, 0]),
             alphaGraph: new pc.Curve([0, 0, 0.2, 0.3, 0.7, 0.14, 1, 0]),
             colorGraph: new pc.CurveSet([
                 [0, 0.72, 1, 0.72],
                 [0, 0.9, 1, 0.9],
                 [0, 1, 1, 1]
             ]),
-            localVelocityGraph: new pc.CurveSet([
-                [0, -1.2, 1, 1.2],
-                [0, 2.0, 0.45, 4.2, 1, 0.4],
-                [0, -1.2, 1, 1.2]
+            velocityGraph: new pc.CurveSet([
+                [0, -1.1, 1, 1.1],
+                [0, 0.6, 0.45, 1.6, 1, -0.15],
+                [0, -1.1, 1, 1.1]
             ]),
-            localVelocityGraph2: new pc.CurveSet([
-                [0, -1.6, 1, 1.6],
-                [0, 2.5, 0.45, 5.0, 1, 0.5],
-                [0, -1.6, 1, 1.6]
+            velocityGraph2: new pc.CurveSet([
+                [0, -1.4, 1, 1.4],
+                [0, 0.75, 0.45, 1.95, 1, -0.22],
+                [0, -1.4, 1, 1.4]
             ]),
             depthSoftening: 0.12
         });
