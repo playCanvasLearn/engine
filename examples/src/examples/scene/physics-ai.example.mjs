@@ -1663,6 +1663,7 @@ const SPRINKLER_CENTER_POSITION = new pc.Vec3(
     ROBOT_Y + 0.03,
     (FIRE_PILE_POSITIONS[0].z + FIRE_PILE_POSITIONS[1].z) * 0.5
 );
+const SPRINKLER_HEIGHT_OFFSET = 2;
 const SPRAY_EXTINGUISH_DELAY = 2;
 const SPRAY_EXTINGUISH_DURATION = 5;
 const WATER_LEAK_POSITIONS = [
@@ -2384,7 +2385,7 @@ const ensureWaterLeaks = () => {
         waterFx.roots.push(root);
 
         const sprinkler = new pc.Entity(`SprinklerHead_${i}`);
-        sprinkler.setLocalPosition(0, 3.2, 0);
+        sprinkler.setLocalPosition(0, 3.2 + SPRINKLER_HEIGHT_OFFSET, 0);
         root.addChild(sprinkler);
 
         const pipe = new pc.Entity(`SprinklerPipe_${i}`);
@@ -2416,7 +2417,7 @@ const ensureWaterLeaks = () => {
         deflector.render.material = waterFx.sprinklerMaterial;
         sprinkler.addChild(deflector);
 
-        const jet = createParticleLayer(root, `WaterJet_${i}`, new pc.Vec3(0, 3.2, 0), {
+        const jet = createParticleLayer(root, `WaterJet_${i}`, new pc.Vec3(0, 3.2 + SPRINKLER_HEIGHT_OFFSET, 0), {
             numParticles: 1400,
             lifetime: 0.3,
             rate: 0.0018,
@@ -2535,7 +2536,7 @@ const ensureWaterLeaks = () => {
 };
 
 const toggleWaterFx = () => {
-    if (!waterFx.enabled) ensureWaterLeaks();
+    ensureWaterLeaks();
     waterFx.enabled = !waterFx.enabled;
     if (waterFx.enabled) waterFx.sprayElapsed = 0;
 
@@ -2558,8 +2559,8 @@ app.on('update', (dt) => {
         const leak = waterFx.leaks[i];
         const wind = updateWindState(leak.windState, dt);
 
-        if (leak.sprinkler) leak.sprinkler.setLocalPosition(0, 3.2, 0);
-        if (leak.jet) leak.jet.setLocalPosition(0, 3.2, 0);
+        if (leak.sprinkler) leak.sprinkler.setLocalPosition(0, 3.2 + SPRINKLER_HEIGHT_OFFSET, 0);
+        if (leak.jet) leak.jet.setLocalPosition(0, 3.2 + SPRINKLER_HEIGHT_OFFSET, 0);
         if (leak.splash) leak.splash.setLocalPosition(wind.x * 0.22, 0.02, wind.z * 0.22);
 
         leak.poolSize += (leak.poolTargetSize - leak.poolSize) * Math.min(1, dt * 0.35);
@@ -2891,6 +2892,7 @@ document.getElementById('btn-smoke').addEventListener('click', toggleSmokeFx);
 document.getElementById('btn-alarm').addEventListener('click', toggleAlarmFx);
 document.getElementById('btn-water').addEventListener('click', toggleWaterFx);
 ensureIncidentRoot();
+ensureWaterLeaks();
 applyIncidentVisualState();
 updateFxButtons();
 
