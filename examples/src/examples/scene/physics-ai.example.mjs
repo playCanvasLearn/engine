@@ -1,6 +1,6 @@
 // @config
 //
-// 物理AI示例 点击底部按钮在脚下触发特效
+// 物理 + AI 在全自动化车间中的典型作用：将“真实物理约束 + 智能决策”放进同一套数字孪生里，用于验证、训练与联动控制。
 
 import * as pc from 'playcanvas';
 import { CameraControls } from 'playcanvas/scripts/esm/camera-controls.mjs';
@@ -1807,6 +1807,108 @@ const updateFxButtons = () => {
     if (waterBtn) waterBtn.classList.toggle('active', waterFx.enabled);
 };
 
+let statusPanelRoot = null;
+let statusPanelStyle = null;
+let statusPanelRefs = null;
+const statusSim = {
+    temperature: 25,
+    smokeDensity: 5
+};
+
+const ensureStatusPanel = () => {
+    if (statusPanelRoot) return;
+
+    statusPanelStyle = document.createElement('style');
+    statusPanelStyle.textContent = `
+        #status-panel { position: fixed; top: 18px; right: 18px; z-index: 10015; pointer-events: none; font-family: Arial, sans-serif; }
+        #status-panel .card { width: 240px; border-radius: 16px; padding: 12px 14px; background: rgba(12, 18, 26, 0.78); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 16px 42px rgba(0,0,0,0.35); backdrop-filter: blur(10px); color: rgba(242,246,255,0.92); }
+        #status-panel .title { font-size: 12px; letter-spacing: 0.5px; opacity: 0.78; margin-bottom: 8px; }
+        #status-panel .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+        #status-panel .row:first-of-type { border-top: 0; padding-top: 2px; }
+        #status-panel .k { font-size: 12px; opacity: 0.78; }
+        #status-panel .v { font-size: 14px; font-weight: 700; letter-spacing: 0.3px; }
+        #status-panel .v.warn { color: rgba(255, 92, 92, 0.95); }
+        #status-panel .v.ok { color: rgba(95, 255, 174, 0.95); }
+        @media (max-width: 600px) {
+            #status-panel { top: 12px; right: 12px; }
+            #status-panel .card { width: 210px; padding: 10px 12px; }
+        }
+    `;
+    document.head.appendChild(statusPanelStyle);
+
+    statusPanelRoot = document.createElement('div');
+    statusPanelRoot.id = 'status-panel';
+    statusPanelRoot.innerHTML = `
+        <div class="card">
+            <div class="title">车间应急数据</div>
+            <div class="row"><div class="k">温度</div><div class="v" data-k="temp">--℃</div></div>
+            <div class="row"><div class="k">烟雾浓度</div><div class="v" data-k="smoke">--%</div></div>
+            <div class="row"><div class="k">报警状态</div><div class="v" data-k="alarm">未触发</div></div>
+            <div class="row"><div class="k">喷淋</div><div class="v" data-k="spray">未开启</div></div>
+        </div>
+    `;
+    document.body.appendChild(statusPanelRoot);
+
+    statusPanelRefs = {
+        temp: statusPanelRoot.querySelector('[data-k="temp"]'),
+        smoke: statusPanelRoot.querySelector('[data-k="smoke"]'),
+        alarm: statusPanelRoot.querySelector('[data-k="alarm"]'),
+        spray: statusPanelRoot.querySelector('[data-k="spray"]')
+    };
+};
+
+const updateStatusPanel = (dt) => {
+    if (!statusPanelRoot) return;
+
+    const fireOn = !!incidentFx.fireEnabled;
+    const smokeOn = !!incidentFx.smokeEnabled;
+    const sprayOn = !!waterFx.enabled;
+
+    let targetTemp = 25;
+    if (fireOn) targetTemp = 85;
+    else if (smokeOn) targetTemp = 45;
+
+    let targetSmoke = 5;
+    if (smokeOn) targetSmoke = 67;
+    else if (fireOn) targetSmoke = 55;
+
+    if (sprayOn) {
+        targetTemp = Math.min(targetTemp, 38);
+        targetSmoke = Math.min(targetSmoke, 12);
+    }
+
+    const tempRate = (targetTemp >= statusSim.temperature ? 0.55 : (sprayOn ? 1.8 : 0.9));
+    const smokeRate = (targetSmoke >= statusSim.smokeDensity ? 0.45 : (sprayOn ? 2.2 : 1.1));
+    statusSim.temperature += (targetTemp - statusSim.temperature) * (1 - Math.exp(-dt * tempRate));
+    statusSim.smokeDensity += (targetSmoke - statusSim.smokeDensity) * (1 - Math.exp(-dt * smokeRate));
+
+    statusSim.temperature = Math.max(0, Math.min(200, statusSim.temperature));
+    statusSim.smokeDensity = Math.max(0, Math.min(100, statusSim.smokeDensity));
+
+    const alarmOn = !!incidentFx.alarmEnabled || statusSim.temperature >= 70 || statusSim.smokeDensity >= 60 || fireOn || smokeOn;
+
+    if (statusPanelRefs?.temp) {
+        statusPanelRefs.temp.textContent = `${Math.round(statusSim.temperature)}℃`;
+        statusPanelRefs.temp.classList.toggle('warn', statusSim.temperature >= 70);
+        statusPanelRefs.temp.classList.toggle('ok', statusSim.temperature < 70);
+    }
+    if (statusPanelRefs?.smoke) {
+        statusPanelRefs.smoke.textContent = `${Math.round(statusSim.smokeDensity)}%`;
+        statusPanelRefs.smoke.classList.toggle('warn', statusSim.smokeDensity >= 60);
+        statusPanelRefs.smoke.classList.toggle('ok', statusSim.smokeDensity < 60);
+    }
+    if (statusPanelRefs?.alarm) {
+        statusPanelRefs.alarm.textContent = alarmOn ? '已触发' : '未触发';
+        statusPanelRefs.alarm.classList.toggle('warn', alarmOn);
+        statusPanelRefs.alarm.classList.toggle('ok', !alarmOn);
+    }
+    if (statusPanelRefs?.spray) {
+        statusPanelRefs.spray.textContent = sprayOn ? '已开启' : '未开启';
+        statusPanelRefs.spray.classList.toggle('warn', sprayOn);
+        statusPanelRefs.spray.classList.toggle('ok', !sprayOn);
+    }
+};
+
 const destroyIncidentRootIfIdle = () => {
     if (incidentFx.fireEnabled || incidentFx.smokeEnabled || incidentFx.alarmEnabled) return;
     stopAlarmAudio();
@@ -2388,17 +2490,9 @@ const ensureWaterLeaks = () => {
         sprinkler.setLocalPosition(0, 3.2 + SPRINKLER_HEIGHT_OFFSET, 0);
         root.addChild(sprinkler);
 
-        const pipe = new pc.Entity(`SprinklerPipe_${i}`);
-        pipe.addComponent('render', { type: 'cylinder', castShadows: false, receiveShadows: false });
-        pipe.setLocalScale(0.06, 0.22, 0.06);
-        pipe.setLocalPosition(0, 0.16, 0);
-        pipe.render.material = waterFx.sprinklerMaterial;
-        sprinkler.addChild(pipe);
-
         const body = new pc.Entity(`SprinklerBody_${i}`);
         body.addComponent('render', { type: 'cylinder', castShadows: false, receiveShadows: false });
         body.setLocalScale(0.16, 0.08, 0.16);
-        body.setLocalPosition(0, 0.03, 0);
         body.render.material = waterFx.sprinklerMaterial;
         sprinkler.addChild(body);
 
@@ -2534,7 +2628,6 @@ const ensureWaterLeaks = () => {
         });
     }
 };
-
 const toggleWaterFx = () => {
     ensureWaterLeaks();
     waterFx.enabled = !waterFx.enabled;
@@ -2574,9 +2667,8 @@ app.on('update', (dt) => {
             const ripple = 0.5 + 0.5 * Math.sin((waterFx.time + i) * 1.8);
             const alphaFactor = Math.min(1, Math.max(0, leak.poolSize / 1.2));
             leak.poolMat.opacity = (waterFx.enabled ? 0.45 : 0) * alphaFactor + (waterFx.enabled ? ripple * 0.05 : 0);
-            leak.poolMat.emissiveIntensity = (waterFx.enabled ? (0.18 + ripple * 0.12) : 0);
-            leak.poolMat.update();
-        }
+        if (leak.sprinkler) leak.sprinkler.setLocalPosition(0, 3.2 + SPRINKLER_HEIGHT_OFFSET, 0);
+        if (leak.jet) leak.jet.setLocalPosition(0, 3.2 + SPRINKLER_HEIGHT_OFFSET, 0);
 
         if (waterFx.enabled && waterFx.sim.supported && leak.simRts && leak.normalMapRt) {
             const poolSize = Math.max(0.5, leak.poolSize);
@@ -2595,7 +2687,7 @@ app.on('update', (dt) => {
             pc.drawQuadWithShader(device, leak.normalMapRt, waterFx.sim.normalMapShader);
         }
     }
-});
+}});
 
 const ensureIncidentRoot = () => {
     if (!incidentFx.firePiles.length) {
@@ -2893,8 +2985,10 @@ document.getElementById('btn-alarm').addEventListener('click', toggleAlarmFx);
 document.getElementById('btn-water').addEventListener('click', toggleWaterFx);
 ensureIncidentRoot();
 ensureWaterLeaks();
+ensureStatusPanel();
 applyIncidentVisualState();
 updateFxButtons();
+app.on('update', (dt) => updateStatusPanel(dt));
 
 // --- Merge cleanups ---
 app.on('destroy', () => {
@@ -2903,6 +2997,8 @@ app.on('destroy', () => {
     app.mouse.off(pc.EVENT_MOUSEDOWN, debugClickWorldPosition);
     stopAlarmAudio();
     for (let i = 0; i < waterFx.roots.length; i++) waterFx.roots[i]?.destroy?.();
+    if (statusPanelRoot) statusPanelRoot.remove();
+    if (statusPanelStyle) statusPanelStyle.remove();
     fxOverlay.remove();
     fxStyle.remove();
 });
