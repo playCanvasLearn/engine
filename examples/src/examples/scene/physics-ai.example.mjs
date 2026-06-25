@@ -1687,6 +1687,59 @@ const createParticleLayer = (parent, name, localPosition, options) => {
     return entity;
 };
 
+const createWindState = (strength, lift = 0) => {
+    const state = {
+        strength,
+        gustStrength: strength * 2.35,
+        lift,
+        current: new pc.Vec3(),
+        from: new pc.Vec3(),
+        target: new pc.Vec3(),
+        elapsed: 0,
+        duration: 0,
+        isGusting: false
+    };
+    return state;
+};
+
+const resetWindTarget = (state) => {
+    const shouldGust = state.isGusting ? false : Math.random() < 0.32;
+    const angle = Math.random() * Math.PI * 2;
+    const strength = shouldGust ? state.gustStrength : state.strength;
+    const magnitude = shouldGust
+        ? strength * (0.85 + Math.random() * 0.75)
+        : strength * (0.12 + Math.random() * 0.32);
+
+    state.from.copy(state.current);
+    state.target.set(
+        Math.cos(angle) * magnitude,
+        shouldGust
+            ? state.lift * (0.65 + Math.random() * 0.9)
+            : state.lift * (0.08 + Math.random() * 0.2),
+        Math.sin(angle) * magnitude
+    );
+    state.elapsed = 0;
+    state.duration = shouldGust
+        ? 0.45 + Math.random() * 0.95
+        : 1.8 + Math.random() * 2.9;
+    state.isGusting = shouldGust;
+};
+
+const updateWindState = (state, dt) => {
+    if (state.duration <= 0) resetWindTarget(state);
+    state.elapsed += dt;
+    if (state.elapsed >= state.duration) resetWindTarget(state);
+
+    const t = pc.math.clamp(state.elapsed / state.duration, 0, 1);
+    const eased = t * t * (3 - 2 * t);
+    state.current.set(
+        pc.math.lerp(state.from.x, state.target.x, eased),
+        pc.math.lerp(state.from.y, state.target.y, eased),
+        pc.math.lerp(state.from.z, state.target.z, eased)
+    );
+    return state.current;
+};
+
 const stopAlarmAudio = () => {
     if (!incidentFx.alarmAudio) return;
     incidentFx.alarmAudio.pause();
@@ -1725,14 +1778,8 @@ const destroyIncidentRootIfIdle = () => {
     for (let i = 0; i < incidentFx.firePiles.length; i++) {
         incidentFx.firePiles[i].root?.destroy?.();
     }
-    if (incidentFx.alarmRoot?.destroy) incidentFx.alarmRoot.destroy();
     incidentFx.firePiles.length = 0;
     incidentFx.smokePiles.length = 0;
-    incidentFx.alarmRoot = null;
-    incidentFx.alarmHousing = null;
-    incidentFx.beacon = null;
-    incidentFx.beaconMaterial = null;
-    incidentFx.beaconLight = null;
     incidentFx.time = 0;
 };
 
@@ -1782,7 +1829,16 @@ const createClassicFlamePile = (root) => {
     root.addChild(light);
 
     flame.enabled = false;
-    return { root, type: 'classic', primary: flame, secondary: null, embers: null, fireLight: light };
+    return {
+        root,
+        type: 'classic',
+        primary: flame,
+        primaryBasePos: new pc.Vec3(0, 0.02, 0),
+        secondary: null,
+        embers: null,
+        fireLight: light,
+        windState: createWindState(0.22, 0.02)
+    };
 };
 
 const createFireballFlamePile = (root) => {
@@ -1897,7 +1953,18 @@ const createFireballFlamePile = (root) => {
     fireCore.enabled = false;
     fireBurst.enabled = false;
     embers.enabled = false;
-    return { root, type: 'fireball', primary: fireCore, secondary: fireBurst, embers, fireLight: light };
+    return {
+        root,
+        type: 'fireball',
+        primary: fireCore,
+        primaryBasePos: new pc.Vec3(0, 0.05, 0),
+        secondary: fireBurst,
+        secondaryBasePos: new pc.Vec3(0, 0.18, 0),
+        embers,
+        embersBasePos: new pc.Vec3(0, 0.1, 0),
+        fireLight: light,
+        windState: createWindState(0.28, 0.04)
+    };
 };
 
 const createSmokePile = (root, heightScale = 1) => {
@@ -1962,22 +2029,30 @@ const createSmokePile = (root, heightScale = 1) => {
 
     smokeBase.enabled = false;
     smokePlume.enabled = false;
-    return { smokeBase, smokePlume };
+    return {
+        smokeBase,
+        smokeBasePos: new pc.Vec3(0, 0.26 * heightScale, 0),
+        smokePlume,
+        smokePlumePos: new pc.Vec3(0, 0.55 * heightScale, 0),
+        windState: createWindState(0.45 * heightScale, 0.08 * heightScale)
+    };
 };
 
 const ensureIncidentRoot = () => {
-    if (incidentFx.firePiles.length || incidentFx.alarmRoot) return;
+    if (!incidentFx.firePiles.length) {
+        for (let i = 0; i < FIRE_PILE_POSITIONS.length; i++) {
+            const root = new pc.Entity(`IncidentFirePile_${i}`);
+            root.setPosition(FIRE_PILE_POSITIONS[i]);
+            sceneRoot.addChild(root);
 
-    for (let i = 0; i < FIRE_PILE_POSITIONS.length; i++) {
-        const root = new pc.Entity(`IncidentFirePile_${i}`);
-        root.setPosition(FIRE_PILE_POSITIONS[i]);
-        sceneRoot.addChild(root);
-
-        const firePile = i === 0 ? createClassicFlamePile(root) : createFireballFlamePile(root);
-        const smokePile = createSmokePile(root, i === 0 ? 0.9 : 1.1);
-        incidentFx.firePiles.push(firePile);
-        incidentFx.smokePiles.push(smokePile);
+            const firePile = i === 0 ? createClassicFlamePile(root) : createFireballFlamePile(root);
+            const smokePile = createSmokePile(root, i === 0 ? 0.9 : 1.1);
+            incidentFx.firePiles.push(firePile);
+            incidentFx.smokePiles.push(smokePile);
+        }
     }
+
+    if (incidentFx.alarmRoot) return;
 
     const alarmRoot = new pc.Entity('AlarmRoot');
     alarmRoot.setPosition(ALARM_BEACON_POSITION);
@@ -2114,6 +2189,56 @@ app.on('update', (dt) => {
             Math.abs(Math.sin(incidentFx.time * (19.4 + i * 2.1) + 0.6 + offset)) * 0.42;
         pile.fireLight.light.intensity = (pile.type === 'classic' ? 2.2 : 2.8) + flicker * 2.8;
         pile.fireLight.light.range = (pile.type === 'classic' ? 4.8 : 6.2) + flicker * 0.9;
+    }
+
+    for (let i = 0; i < incidentFx.firePiles.length; i++) {
+        const pile = incidentFx.firePiles[i];
+        const wind = updateWindState(pile.windState, dt);
+
+        if (pile.primary && pile.primaryBasePos) {
+            pile.primary.setLocalPosition(
+                pile.primaryBasePos.x + wind.x * 0.35,
+                pile.primaryBasePos.y + wind.y * 0.18,
+                pile.primaryBasePos.z + wind.z * 0.35
+            );
+            pile.primary.setLocalEulerAngles(wind.z * 12, 0, -wind.x * 12);
+        }
+
+        if (pile.secondary && pile.secondaryBasePos) {
+            pile.secondary.setLocalPosition(
+                pile.secondaryBasePos.x + wind.x * 0.55,
+                pile.secondaryBasePos.y + wind.y * 0.25,
+                pile.secondaryBasePos.z + wind.z * 0.55
+            );
+            pile.secondary.setLocalEulerAngles(wind.z * 18, 0, -wind.x * 18);
+        }
+
+        if (pile.embers && pile.embersBasePos) {
+            pile.embers.setLocalPosition(
+                pile.embersBasePos.x + wind.x * 0.45,
+                pile.embersBasePos.y + wind.y * 0.2,
+                pile.embersBasePos.z + wind.z * 0.45
+            );
+        }
+    }
+
+    for (let i = 0; i < incidentFx.smokePiles.length; i++) {
+        const smoke = incidentFx.smokePiles[i];
+        const wind = updateWindState(smoke.windState, dt);
+
+        smoke.smokeBase.setLocalPosition(
+            smoke.smokeBasePos.x + wind.x * 0.65,
+            smoke.smokeBasePos.y + wind.y * 0.3,
+            smoke.smokeBasePos.z + wind.z * 0.65
+        );
+        smoke.smokeBase.setLocalEulerAngles(wind.z * 16, 0, -wind.x * 16);
+
+        smoke.smokePlume.setLocalPosition(
+            smoke.smokePlumePos.x + wind.x * 1.2,
+            smoke.smokePlumePos.y + wind.y * 0.6,
+            smoke.smokePlumePos.z + wind.z * 1.2
+        );
+        smoke.smokePlume.setLocalEulerAngles(wind.z * 24, 0, -wind.x * 24);
     }
 
     if (incidentFx.alarmEnabled && incidentFx.beaconMaterial && incidentFx.beaconLight?.light) {
