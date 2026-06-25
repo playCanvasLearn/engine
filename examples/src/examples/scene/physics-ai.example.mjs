@@ -2523,8 +2523,8 @@ const ensureWaterLeaks = () => {
             splash,
             pool,
             poolMat,
-            poolSize: 0.5,
-            poolTargetSize: 0.5,
+            poolSize: 0,
+            poolTargetSize: 0,
             windState: createWindState(0.35, 0),
             simRts: sim?.simRts ?? null,
             simIndex: sim?.simIndex ?? 0,
@@ -2543,7 +2543,7 @@ const toggleWaterFx = () => {
         const leak = waterFx.leaks[i];
         leak.jet.enabled = waterFx.enabled;
         leak.splash.enabled = waterFx.enabled;
-        leak.poolTargetSize = waterFx.enabled ? 4.8 : 0.5;
+        leak.poolTargetSize = waterFx.enabled ? 4.8 : 0;
     }
     updateFxButtons();
 };
@@ -2563,12 +2563,17 @@ app.on('update', (dt) => {
         if (leak.splash) leak.splash.setLocalPosition(wind.x * 0.22, 0.02, wind.z * 0.22);
 
         leak.poolSize += (leak.poolTargetSize - leak.poolSize) * Math.min(1, dt * 0.35);
-        if (leak.pool) leak.pool.setLocalScale(leak.poolSize, 1, leak.poolSize);
+        if (leak.pool) {
+            const s = Math.max(0.001, leak.poolSize);
+            leak.pool.setLocalScale(s, 1, s);
+            leak.pool.enabled = leak.poolSize > 0.02;
+        }
 
         if (leak.poolMat) {
             const ripple = 0.5 + 0.5 * Math.sin((waterFx.time + i) * 1.8);
-            leak.poolMat.opacity = (waterFx.enabled ? 0.45 : 0.28) + ripple * 0.05;
-            leak.poolMat.emissiveIntensity = 0.18 + ripple * 0.12;
+            const alphaFactor = Math.min(1, Math.max(0, leak.poolSize / 1.2));
+            leak.poolMat.opacity = (waterFx.enabled ? 0.45 : 0) * alphaFactor + (waterFx.enabled ? ripple * 0.05 : 0);
+            leak.poolMat.emissiveIntensity = (waterFx.enabled ? (0.18 + ripple * 0.12) : 0);
             leak.poolMat.update();
         }
 
@@ -2840,7 +2845,7 @@ app.on('update', (dt) => {
             const leak = waterFx.leaks[i];
             leak.jet.enabled = false;
             leak.splash.enabled = false;
-            leak.poolTargetSize = 0.5;
+            leak.poolTargetSize = 0;
         }
         applyIncidentVisualState();
         updateFxButtons();
