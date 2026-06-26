@@ -4,7 +4,6 @@ import { Component } from 'react';
 import { ShareDialog } from './ShareDialog.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx } from '../jsx.mjs';
-import { logo } from '../paths.mjs';
 import { exampleMetaData } from '../metadata.mjs';
 import { isMenuHiddenForPath } from '../menu-config.mjs';
 import { buildShareUrl, getHashPath, patchState, readState } from '../url-state.mjs';
@@ -211,9 +210,7 @@ class Menu extends TypedComponent {
         const categoryKebab = parts[0] ?? '';
         const exampleNameKebab = parts[1] ?? '';
         const list = /** @type {ExampleMetaItem[]} */ (/** @type {unknown} */ (exampleMetaData));
-        const meta = list.find(item =>
-            item.categoryKebab === categoryKebab && item.exampleNameKebab === exampleNameKebab
-        );
+        const meta = list.find(item => item.categoryKebab === categoryKebab && item.exampleNameKebab === exampleNameKebab);
         if (this.props.loading || (meta && typeof meta.externalUrl === 'string' && meta.externalUrl) || isMenuHiddenForPath(path)) {
             return null;
         }
@@ -229,36 +226,6 @@ class Menu extends TypedComponent {
                 {
                     id: 'menu-buttons'
                 },
-                /* jsx('img', {
-                    id: 'playcanvas-icon',
-                    src: logo,
-                    onClick: () => {
-                        window.open('https://github.com/playcanvas/engine');
-                    }
-                }), */
-/*                 jsx('button', {
-                    type: 'button',
-                    id: 'shareButton',
-                    className: 'pcui-button',
-                    onClick: this.openShareDialog,
-                    'aria-label': 'Share this page',
-                    style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }
-                }, jsx('svg', {
-                    viewBox: '0 0 24 24',
-                    fill: 'none',
-                    stroke: 'currentColor',
-                    strokeWidth: 2,
-                    strokeLinecap: 'round',
-                    strokeLinejoin: 'round',
-                    width: 20,
-                    height: 20
-                },
-                jsx('circle', { cx: 18, cy: 5, r: 3 }),
-                jsx('circle', { cx: 6, cy: 12, r: 3 }),
-                jsx('circle', { cx: 18, cy: 19, r: 3 }),
-                jsx('line', { x1: 8.59, y1: 13.51, x2: 15.42, y2: 17.49 }),
-                jsx('line', { x1: 15.41, y1: 6.51, x2: 8.59, y2: 10.49 })
-                )), */
                 jsx(Button, {
                     icon: 'E149',
                     id: 'showMiniStatsButton',

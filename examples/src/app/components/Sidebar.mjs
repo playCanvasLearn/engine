@@ -1,10 +1,10 @@
-import { Observer } from '@playcanvas/observer';
-import { BindingTwoWay, BooleanInput, Container, Label, Panel, TextInput } from '@playcanvas/pcui/react';
+import * as Accordion from '@radix-ui/react-accordion';
+import * as Collapsible from '@radix-ui/react-collapsible';
+import { ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Search, Sparkles, X } from 'lucide-react';
 import { Component } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { exampleMetaData } from '../metadata.mjs';
-import { VERSION } from '../constants.mjs';
 import { iframe } from '../iframe.mjs';
 import { jsx } from '../jsx.mjs';
 import {
@@ -15,9 +15,11 @@ import {
     isCategoryHidden,
     isExampleHidden,
     isSidebarCategoryCollapsed,
+    readSidebarCollapsed,
     isSidebarHiddenForPath,
     menuConfig,
-    writeSidebarCategoryCollapsedCache
+    writeSidebarCategoryCollapsedCache,
+    writeSidebarCollapsed
 } from '../menu-config.mjs';
 import { thumbnailPath } from '../paths.mjs';
 import { getHashPath, patchState, readState } from '../url-state.mjs';
@@ -38,8 +40,8 @@ import { getLayout } from '../utils.mjs';
  * @typedef {object} State
  * @property {Record<string, { label: string, examples: Record<string, string> }>} defaultCategories - The default categories.
  * @property {Record<string, { label: string, examples: Record<string, string> }>|null} filteredCategories - The filtered categories.
- * @property {Observer} observer - The observer.
  * @property {boolean} collapsed - Collapsed or not.
+ * @property {string[]} expandedCategories - Expanded category keys.
  * @property {string} filterText - The current filter.
  * @property {'mobile'|'desktop'} layout - Current layout.
  */
@@ -48,7 +50,6 @@ import { getLayout } from '../utils.mjs';
  * @type {typeof Component<Props, State>}
  */
 const TypedComponent = Component;
-const CATEGORY_PANEL_ID_PREFIX = 'category-panel-';
 
 /**
  * @returns {Record<string, { label: string, examples: Record<string, string> }>} - The category files.
@@ -144,20 +145,27 @@ function filterCategories(defaultCategories, filter) {
     return updatedCategories;
 }
 
+/**
+ * @param {Record<string, { label: string, examples: Record<string, string> }>} categories - Categories.
+ * @returns {string[]} Expanded categories.
+ */
+function getExpandedCategories(categories) {
+    return Object.keys(categories).filter(category => !isSidebarCategoryCollapsed(category));
+}
+
 const createState = () => {
     const ui = readState().ui ?? {};
     const filter = typeof ui.filter === 'string' ? ui.filter : '';
-    const largeThumbnails = typeof ui.largeThumbnails === 'boolean' ? ui.largeThumbnails : false;
     const collapsed = typeof ui.sideBarCollapsed === 'boolean' ?
         ui.sideBarCollapsed :
-        localStorage.getItem('sideBarCollapsed') === 'true' || getLayout() === 'mobile';
+        readSidebarCollapsed() || getLayout() === 'mobile';
     const defaultCategories = getDefaultExampleFiles();
     return {
         defaultCategories,
         filteredCategories: filterCategories(defaultCategories, filter),
         filterText: filter,
-        observer: new Observer({ largeThumbnails }),
         collapsed,
+        expandedCategories: getExpandedCategories(defaultCategories),
         layout: getLayout()
     };
 };
@@ -166,18 +174,6 @@ class SideBar extends TypedComponent {
     /** @type {State} */
     state = createState();
 
-    /** @type {HTMLElement | null} */
-    _sideBar = null;
-
-    /** @type {string} */
-    _sideBarLayout = '';
-
-    /** @type {{ unbind: () => void } | null} */
-    _largeThumbnailsHandle = null;
-
-    /** @type {HTMLElement | null} */
-    _categoryPanelsContainer = null;
-
     /**
      * @param {Props} props - Component properties.
      */
@@ -185,90 +181,34 @@ class SideBar extends TypedComponent {
         super(props);
         this._onLayoutChange = this._onLayoutChange.bind(this);
         this._onClickExample = this._onClickExample.bind(this);
-        this._onLargeThumbnailsSet = this._onLargeThumbnailsSet.bind(this);
-        this._onCategoryPanelHeaderClick = this._onCategoryPanelHeaderClick.bind(this);
         this._onThumbnailError = this._onThumbnailError.bind(this);
     }
 
-    setupSideBar() {
-        const sideBar = document.getElementById('sideBar');
-        const layout = this.props.layout ?? this.state.layout;
-        if (!sideBar || (this._sideBar === sideBar && this._sideBarLayout === layout)) {
-            return;
-        }
-        this._sideBar = sideBar;
-        this._sideBarLayout = layout;
-        const drag = this.props.onMobilePanelDragStart;
-        sideBar.onpointerdown = layout === 'mobile' && drag ? event => drag(event) : null;
-
-        // PCUI should just have a "onHeaderClick" but can't find anything
-        const sideBarHeader = /** @type {HTMLElement | null} */ (
-            /** @type {unknown} */ (sideBar.querySelector('.pcui-panel-header'))
-        );
-        if (sideBarHeader) {
-            sideBarHeader.onclick = layout === 'mobile' ? null : () => this.toggleCollapse();
-            sideBarHeader.onpointerdown = null;
-        }
-        this.setupControlPanelToggleButton();
-    }
-
     componentDidMount() {
-        this._largeThumbnailsHandle = this.state.observer.on('largeThumbnails:set', this._onLargeThumbnailsSet);
-        this.setupSideBar();
-        this.setupCategoryCollapsePersistence();
+        this.ensureInitialScroll();
         window.addEventListener('resize', this._onLayoutChange);
         window.addEventListener('orientationchange', this._onLayoutChange);
     }
 
     componentDidUpdate() {
-        this.setupSideBar();
-        this.setupCategoryCollapsePersistence();
+        this.ensureInitialScroll();
     }
 
     componentWillUnmount() {
-        this._largeThumbnailsHandle?.unbind();
-        this._largeThumbnailsHandle = null;
-        this._categoryPanelsContainer?.removeEventListener('click', this._onCategoryPanelHeaderClick);
-        this._categoryPanelsContainer = null;
         window.removeEventListener('resize', this._onLayoutChange);
         window.removeEventListener('orientationchange', this._onLayoutChange);
     }
 
-    _onLargeThumbnailsSet() {
-        patchState({ ui: { largeThumbnails: this.state.observer.get('largeThumbnails') === true } });
-        const sideBar = document.getElementById('sideBar');
-        if (!sideBar) {
-            return;
-        }
-        let minTopNavItemDistance = Number.MAX_VALUE;
-
-        const navItems = /** @type {NodeListOf<HTMLElement>} */ (
-            /** @type {unknown} */ (document.querySelectorAll('.nav-item'))
-        );
-        for (let i = 0; i < navItems.length; i++) {
-            const nav = navItems[i];
-            const navItemDistance = Math.abs(120 - nav.getBoundingClientRect().top);
-            if (navItemDistance < minTopNavItemDistance) {
-                minTopNavItemDistance = navItemDistance;
-                sideBar.classList.toggle('small-thumbnails');
-                nav.scrollIntoView();
-                break;
-            }
-        }
-    }
-
-    setupControlPanelToggleButton() {
-        // set up the control panel toggle button
+    ensureInitialScroll() {
         const sideBar = document.getElementById('sideBar');
         if (!sideBar) {
             return;
         }
         sideBar.classList.add('visible');
-        // when first opening the examples browser via a specific example, scroll it into view
         // @ts-ignore
         if (!window._scrolledToExample) {
             const examplePath = getHashPath().split('/');
-            document.getElementById(`link-${examplePath[1]}-${examplePath[2]}`)?.scrollIntoView();
+            document.getElementById(`link-${examplePath[1]}-${examplePath[2]}`)?.scrollIntoView({ block: 'center' });
             // @ts-ignore
             window._scrolledToExample = true;
         }
@@ -285,41 +225,9 @@ class SideBar extends TypedComponent {
 
     toggleCollapse() {
         const { collapsed } = this.state;
-        localStorage.setItem('sideBarCollapsed', `${!collapsed}`);
+        writeSidebarCollapsed(!collapsed);
         this.mergeState({ collapsed: !collapsed });
         patchState({ ui: { sideBarCollapsed: !collapsed } });
-    }
-
-    setupCategoryCollapsePersistence() {
-        const container = document.getElementById('sideBar-contents');
-        if (this._categoryPanelsContainer === container) {
-            return;
-        }
-        this._categoryPanelsContainer?.removeEventListener('click', this._onCategoryPanelHeaderClick);
-        this._categoryPanelsContainer = container;
-        this._categoryPanelsContainer?.addEventListener('click', this._onCategoryPanelHeaderClick);
-    }
-
-    _onCategoryPanelHeaderClick(event) {
-        const target = event.target;
-        if (!(target instanceof Element)) {
-            return;
-        }
-        const header = target.closest('.categoryPanel .pcui-panel-header');
-        if (!(header instanceof HTMLElement)) {
-            return;
-        }
-        const panel = header.closest('.categoryPanel');
-        if (!(panel instanceof HTMLElement) || !panel.id.startsWith(CATEGORY_PANEL_ID_PREFIX)) {
-            return;
-        }
-        const categoryKebab = panel.id.slice(CATEGORY_PANEL_ID_PREFIX.length);
-        if (!categoryKebab) {
-            return;
-        }
-        window.requestAnimationFrame(() => {
-            writeSidebarCategoryCollapsedCache(categoryKebab, panel.classList.contains('pcui-collapsed'));
-        });
     }
 
     _onThumbnailError(event) {
@@ -331,13 +239,38 @@ class SideBar extends TypedComponent {
     }
 
     /**
+     * @param {string[]} nextExpandedCategories - Expanded category values from accordion.
+     */
+    onExpandedCategoriesChange(nextExpandedCategories) {
+        const categories = this.state.filteredCategories || this.state.defaultCategories;
+        const visibleCategories = Object.keys(categories);
+        const visibleCategorySet = new Set(visibleCategories);
+        const mergedExpandedCategories = [
+            ...this.state.expandedCategories.filter(category => !visibleCategorySet.has(category)),
+            ...nextExpandedCategories
+        ];
+
+        visibleCategories.forEach((category) => {
+            writeSidebarCategoryCollapsedCache(category, !nextExpandedCategories.includes(category));
+        });
+
+        this.mergeState({ expandedCategories: mergedExpandedCategories });
+    }
+
+    /**
      * @param {string} filter - The filter string.
      */
     onChangeFilter(filter) {
         const { defaultCategories } = this.state;
+        const filteredCategories = filterCategories(defaultCategories, filter);
+        const visibleCategories = Object.keys(filteredCategories || defaultCategories);
+        const expandedCategories = filter ?
+            Array.from(new Set([...this.state.expandedCategories, ...visibleCategories])) :
+            this.state.expandedCategories;
         this.mergeState({
             filterText: filter,
-            filteredCategories: filterCategories(defaultCategories, filter)
+            filteredCategories,
+            expandedCategories
         });
         patchState({ ui: { filter } });
     }
@@ -360,135 +293,193 @@ class SideBar extends TypedComponent {
 
     renderContents() {
         const categories = this.state.filteredCategories || this.state.defaultCategories;
-        if (Object.keys(categories).length === 0) {
-            return jsx(Label, { text: '没有结果' });
+        const categoryKeys = Object.keys(categories).sort(compareCategories);
+        if (categoryKeys.length === 0) {
+            return jsx(
+                'div',
+                { className: 'sidebar-empty' },
+                jsx(LayoutGrid, { size: 18 }),
+                jsx('span', null, '没有结果')
+            );
         }
         const { pathname } = this.props.location;
-        return Object.keys(categories)
-        .sort(compareCategories)
-        .map((category) => {
-            return jsx(
-                Panel,
-                {
-                    key: category,
-                    id: `${CATEGORY_PANEL_ID_PREFIX}${category}`,
-                    class: 'categoryPanel',
-                    headerText: categories[category].label ?? category.split('-').join(' ').toUpperCase(),
-                    collapsible: true,
-                    collapsed: isSidebarCategoryCollapsed(category)
-                },
-                jsx(
-                    'ul',
+        return jsx(
+            Accordion.Root,
+            {
+                type: 'multiple',
+                className: 'sidebar-accordion',
+                value: categoryKeys.filter(category => this.state.expandedCategories.includes(category)),
+                onValueChange: this.onExpandedCategoriesChange.bind(this)
+            },
+            categoryKeys.map((category) => {
+                return jsx(
+                    Accordion.Item,
                     {
-                        className: 'category-nav'
+                        key: category,
+                        value: category,
+                        className: 'sidebar-category'
                     },
-                    Object.keys(categories[category].examples)
-                    .sort((a, b) => compareExamples(category, a, b))
-                    .map((example) => {
-                        const path = `/${category}/${example}`;
-                        const isSelected = pathname === path;
-                        const className = `nav-item ${isSelected ? 'selected' : ''}`;
-                        return jsx(
-                            Link,
+                    jsx(
+                        Accordion.Header,
+                        {
+                            asChild: true
+                        },
+                        jsx(
+                            'div',
                             {
-                                key: example,
-                                to: path,
-                                onClick: e => this._onClickExample(e, path)
+                                className: 'sidebar-category-header'
                             },
                             jsx(
-                                'div',
-                                { className: className, id: `link-${category}-${example}` },
-                                jsx('img', {
-                                    className: 'small-thumbnail',
-                                    loading: 'lazy',
-                                    src: `${thumbnailPath}${category}_${example}_small.webp`,
-                                    onError: this._onThumbnailError
-                                }),
-                                jsx('img', {
-                                    className: 'large-thumbnail',
-                                    loading: 'lazy',
-                                    src: `${thumbnailPath}${category}_${example}_large.webp`,
-                                    onError: this._onThumbnailError
-                                }),
+                                Accordion.Trigger,
+                                {
+                                    className: 'sidebar-category-trigger'
+                                },
                                 jsx(
                                     'div',
-                                    {
-                                        className: 'nav-item-text'
-                                    },
-                                    categories[category].examples[example]
-                                )
+                                    { className: 'sidebar-category-copy' },
+                                    jsx('span', { className: 'sidebar-category-name' }, categories[category].label ?? category.split('-').join(' ').toUpperCase())// ,
+                                    // jsx('span', { className: 'sidebar-category-count' }, `${Object.keys(categories[category].examples).length}项`)
+                                ),
+                                jsx(ChevronDown, {
+                                    size: 16,
+                                    className: 'sidebar-category-chevron'
+                                })
                             )
-                        );
-                    })
-                )
-            );
-        });
+                        )
+                    ),
+                    jsx(
+                        Accordion.Content,
+                        {
+                            className: 'sidebar-category-content'
+                        },
+                        jsx(
+                            'div',
+                            {
+                                className: 'sidebar-example-list'
+                            },
+                            Object.keys(categories[category].examples)
+                            .sort((a, b) => compareExamples(category, a, b))
+                            .map((example) => {
+                                const path = `/${category}/${example}`;
+                                const isSelected = pathname === path;
+                                return jsx(
+                                    Link,
+                                    {
+                                        key: example,
+                                        to: path,
+                                        onClick: e => this._onClickExample(e, path),
+                                        className: `sidebar-example-link ${isSelected ? 'selected' : ''}`
+                                    },
+                                    jsx(
+                                        'article',
+                                        {
+                                            className: `sidebar-example-card ${isSelected ? 'selected' : ''}`,
+                                            id: `link-${category}-${example}`
+                                        },
+                                        jsx(
+                                            'div',
+                                            { className: 'sidebar-thumbnail-frame' },
+                                            jsx('img', {
+                                                className: 'sidebar-thumbnail',
+                                                loading: 'lazy',
+                                                src: `${thumbnailPath}${category}_${example}_large.webp`,
+                                                onError: this._onThumbnailError
+                                            }),
+                                            jsx(
+                                                'div',
+                                                {
+                                                    className: 'sidebar-example-copy'
+                                                },
+                                                jsx('div', { className: 'sidebar-example-title' }, categories[category].examples[example])
+                                            )
+                                        )
+                                    )
+                                );
+                            })
+                        )
+                    )
+                );
+            })
+        );
     }
 
     render() {
-        const { observer, collapsed } = this.state;
+        const { collapsed, filterText } = this.state;
         const layout = this.props.layout ?? this.state.layout;
         if (isSidebarHiddenForPath(this.props.location.pathname)) {
             return null;
         }
-        const smallThumbnails = observer.get('largeThumbnails') !== true;
-        const panelOptions = {
-            headerText: menuConfig.sidebar.title,
-            collapsible: true,
-            collapsed: false,
-            id: 'sideBar',
-            class: [...(smallThumbnails ? ['small-thumbnails'] : []), ...(collapsed ? ['collapsed'] : [])]
-        };
-        if (layout === 'mobile') {
-            if (this.props.mobilePanel !== 'examples') {
-                return null;
-            }
-            panelOptions.headerText = menuConfig.sidebar.title;
-            panelOptions.class = ['mobile-sheet', 'small-thumbnails'];
-            panelOptions.collapsible = false;
-            panelOptions.collapsed = false;
+        if (layout === 'mobile' && this.props.mobilePanel !== 'examples') {
+            return null;
         }
+        const open = layout === 'mobile' ? true : !collapsed;
         return jsx(
-            Panel,
-            // @ts-ignore
-            panelOptions,
+            Collapsible.Root,
+            {
+                id: 'sideBar',
+                open,
+                className: `sidebar-shell ${layout === 'mobile' ? 'mobile-sheet' : 'desktop-shell'} ${collapsed && layout !== 'mobile' ? 'collapsed' : ''}`
+            },
             jsx(
-                Container,
-                { class: ['filter-container', ...(this.state.filterText ? ['has-filter-text'] : [])] },
-                jsx(/** @type {any} */ (TextInput), {
-                    class: 'filter-input',
-                    keyChange: true,
-                    placeholder: menuConfig.sidebar.filterPlaceholder,
-                    value: this.state.filterText,
-                    onChange: this.onChangeFilter.bind(this)
-                }),
-                this.state.filterText ? jsx(
-                    'div',
-                    {
-                        className: 'filter-clear',
-                        onClick: this.clearFilter.bind(this)
-                    },
-                    '\u2715'
-                ) : null
-            ),
-/*             layout !== 'mobile' && jsx(
                 'div',
                 {
-                    style: {
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        margin: 12
-                    }
+                    className: 'sidebar-header',
+                    onPointerDown: layout === 'mobile' ? this.props.onMobilePanelDragStart : undefined
                 },
-                jsx(Label, { text: '显示大缩略图:' }),
-                jsx(BooleanInput, {
-                    type: 'toggle',
-                    binding: new BindingTwoWay(),
-                    link: { observer, path: 'largeThumbnails' }
-                })
-            ), */
-            jsx(Container, { id: 'sideBar-contents' }, this.renderContents())
+                jsx(
+                    'div',
+                    {
+                        className: 'sidebar-header-copy'
+                    },
+                    jsx(
+                        'div',
+                        { className: 'sidebar-title-row' },
+                        // jsx(Sparkles, { size: 16, className: 'sidebar-title-icon' }),
+                        jsx('h2', { className: 'sidebar-title' }, '鼎宏元景')
+                    )
+                ),
+                layout !== 'mobile' && jsx(
+                    Collapsible.Trigger,
+                    {
+                        type: 'button',
+                        className: 'sidebar-collapse-button',
+                        'aria-label': collapsed ? '展开菜单' : '折叠菜单',
+                        onClick: this.toggleCollapse.bind(this)
+                    },
+                    collapsed ? jsx(ChevronRight, { size: 18 }) : jsx(ChevronLeft, { size: 18 })
+                )
+            ),
+            open && jsx(
+                Collapsible.Content,
+                {
+                    className: 'sidebar-content'
+                },
+                jsx(
+                    'div',
+                    {
+                        className: 'sidebar-filter-shell'
+                    },
+                    jsx(Search, { size: 16, className: 'sidebar-filter-icon' }),
+                    jsx('input', {
+                        type: 'text',
+                        className: 'sidebar-filter-input',
+                        placeholder: menuConfig.sidebar.filterPlaceholder,
+                        value: filterText,
+                        onChange: event => this.onChangeFilter(event.target.value)
+                    }),
+                    filterText ? jsx(
+                        'button',
+                        {
+                            type: 'button',
+                            className: 'sidebar-filter-clear',
+                            onClick: this.clearFilter.bind(this),
+                            'aria-label': '清空筛选'
+                        },
+                        jsx(X, { size: 14 })
+                    ) : null
+                ),
+                jsx('div', { id: 'sideBar-contents' }, this.renderContents())
+            )
         );
     }
 }

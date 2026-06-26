@@ -1257,7 +1257,11 @@ export const menuConfig = {
     sidebar: {
         title: '鼎宏元景-数字工厂、虚拟现实',
         filterPlaceholder: '筛选...',
+        collapsedStorageKey: 'sideBarCollapsed',
         categoryCollapsedStorageKey: 'sideBarCategoryCollapsed'
+    },
+    menu: {
+        collapsedStorageKey: 'menuCollapsed'
     },
     categories: mergeCategoryTrees(buildDefaultCategories(), mergeCategoryTrees(loadCategoryOverrides(), menuOverrides.categories)),
     hiddenPaths: {
@@ -1340,6 +1344,13 @@ export const readSidebarCategoryCollapsedCache = () => {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 };
 
+export const readSidebarCollapsed = () => readStorageValue(menuConfig.sidebar.collapsedStorageKey) === 'true';
+
+/** @param {boolean} collapsed */
+export const writeSidebarCollapsed = (collapsed) => {
+    writeStorageValue(menuConfig.sidebar.collapsedStorageKey, `${collapsed}`);
+};
+
 /** @param {string} categoryKebab */
 export const isSidebarCategoryCollapsed = (categoryKebab) => {
     return readSidebarCategoryCollapsedCache()[categoryKebab] === true;
@@ -1354,4 +1365,11 @@ export const writeSidebarCategoryCollapsedCache = (categoryKebab, collapsed) => 
         delete cached[categoryKebab];
     }
     writeStorageValue(menuConfig.sidebar.categoryCollapsedStorageKey, JSON.stringify(cached));
+};
+
+export const readMenuCollapsed = () => readStorageValue(menuConfig.menu.collapsedStorageKey) === 'true';
+
+/** @param {boolean} collapsed */
+export const writeMenuCollapsed = (collapsed) => {
+    writeStorageValue(menuConfig.menu.collapsedStorageKey, `${collapsed}`);
 };
