@@ -494,29 +494,48 @@ const loadLegacyAnim = async (fileName) => {
 };
 
 const createLegacyAnimPlayer = (entity) => {
-    const graph = entity?.model?.model?.graph ?? null;
-    const resolvedNodes = new Map();
+    const model = entity?.model?.model ?? null;
+    const graph = model?.graph ?? null;
+
+    const boneTargets = new Map();
+    for (const skinInstance of model?.skinInstances ?? []) {
+        for (const bone of skinInstance?.bones ?? []) {
+            if (!bone?.name) continue;
+            const list = boneTargets.get(bone.name);
+            if (list) list.push(bone);
+            else boneTargets.set(bone.name, [bone]);
+        }
+    }
+
+    const resolvedTargets = new Map();
     const tmp = new pc.Vec3();
+    const applyToNode = (node, track, time) => {
+        if (track.posKeys.length) {
+            sampleKeys(track.posKeys, time, tmp, track.defaults.p);
+            node.setLocalPosition(tmp);
+        }
+        if (track.rotKeys.length) {
+            sampleKeys(track.rotKeys, time, tmp, track.defaults.r);
+            node.setLocalEulerAngles(tmp.x, tmp.y, tmp.z);
+        }
+        if (track.scaleKeys.length) {
+            sampleKeys(track.scaleKeys, time, tmp, track.defaults.s);
+            node.setLocalScale(tmp);
+        }
+    };
+
     const apply = (clip, time) => {
         if (!graph) return;
         for (const track of clip.nodes) {
-            let node = resolvedNodes.get(track.name);
-            if (node === undefined) {
-                node = graph.findByName(track.name) ?? null;
-                resolvedNodes.set(track.name, node);
+            let targets = resolvedTargets.get(track.name);
+            if (targets === undefined) {
+                const bones = boneTargets.get(track.name);
+                const byName = graph.findByName(track.name) ?? null;
+                targets = bones?.length ? bones : (byName ? [byName] : []);
+                resolvedTargets.set(track.name, targets);
             }
-            if (!node) continue;
-            if (track.posKeys.length) {
-                sampleKeys(track.posKeys, time, tmp, track.defaults.p);
-                node.setLocalPosition(tmp);
-            }
-            if (track.rotKeys.length) {
-                sampleKeys(track.rotKeys, time, tmp, track.defaults.r);
-                node.setLocalEulerAngles(tmp.x, tmp.y, tmp.z);
-            }
-            if (track.scaleKeys.length) {
-                sampleKeys(track.scaleKeys, time, tmp, track.defaults.s);
-                node.setLocalScale(tmp);
+            for (const node of targets) {
+                applyToNode(node, track, time);
             }
         }
     };
@@ -597,7 +616,13 @@ const createToggleInteractor = async (options) => {
         }
     };
 
-    return { entity: state.entity, trigger, update, isBusy: () => state.playing };
+    return {
+        entity: state.entity,
+        trigger,
+        update,
+        isBusy: () => state.playing,
+        pickInflate: Array.isArray(options.pickInflate) ? new pc.Vec3(...options.pickInflate) : null
+    };
 };
 
 const interactables = [];
@@ -688,6 +713,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'commode_door_l',
     openAnim: 'commode_door_l_open_anim.json',
     closeAnim: 'commode_door_l_close_anim.json',
+    pickInflate: [0.35, 0.45, 0.35],
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}commode_door_open.wav`, 0.85),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -701,6 +727,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'commode_door_r',
     openAnim: 'commode_door_r_open_anim.json',
     closeAnim: 'commode_door_r_close_anim.json',
+    pickInflate: [0.35, 0.45, 0.35],
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}commode_door_open.wav`, 0.85),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -894,6 +921,64 @@ const findInteractable = (entity) => {
     return null;
 };
 
+const pickInteractable = (ray, outPoint, maxDistance = Number.POSITIVE_INFINITY) => {
+    const models = app.root.findComponents('model');
+    let best = null;
+    let bestDistSq = Number.POSITIVE_INFINITY;
+    const maxDistSq = Number.isFinite(maxDistance) ? maxDistance * maxDistance : Number.POSITIVE_INFINITY;
+    const tmp = new pc.Vec3();
+    const combinedAabb = new pc.BoundingBox();
+    let combinedReady = false;
+    for (const model of models) {
+        if (!model?.enabled || !model.entity?.enabled) continue;
+        const interaction = findInteractable(model.entity);
+        if (!interaction) continue;
+        const inflate = interaction.pickInflate;
+        if (inflate) {
+            combinedReady = false;
+            const meshInstances = model.meshInstances;
+            for (let i = 0; i < meshInstances.length; i++) {
+                const mi = meshInstances[i];
+                if (!mi?.visible) continue;
+                if (!mi?.aabb) continue;
+                if (!combinedReady) {
+                    combinedAabb.copy(mi.aabb);
+                    combinedReady = true;
+                } else {
+                    combinedAabb.add(mi.aabb);
+                }
+            }
+            if (!combinedReady) continue;
+            combinedAabb.halfExtents.x += inflate.x;
+            combinedAabb.halfExtents.y += inflate.y;
+            combinedAabb.halfExtents.z += inflate.z;
+            if (!combinedAabb.intersectsRay(ray, outPoint)) continue;
+            tmp.sub2(outPoint, ray.origin);
+            const d = tmp.lengthSq();
+            if (d > maxDistSq) continue;
+            if (d < bestDistSq) {
+                bestDistSq = d;
+                best = interaction;
+            }
+            continue;
+        }
+        const meshInstances = model.meshInstances;
+        for (let i = 0; i < meshInstances.length; i++) {
+            const mi = meshInstances[i];
+            if (!mi?.visible) continue;
+            if (!mi?.aabb?.intersectsRay(ray, outPoint)) continue;
+            tmp.sub2(outPoint, ray.origin);
+            const d = tmp.lengthSq();
+            if (d > maxDistSq) continue;
+            if (d < bestDistSq) {
+                bestDistSq = d;
+                best = interaction;
+            }
+        }
+    }
+    return best;
+};
+
 const attemptInteract = (clientX, clientY) => {
     const cameraComponent = camera?.camera;
     if (!cameraComponent) return;
@@ -906,8 +991,7 @@ const attemptInteract = (clientX, clientY) => {
     const to = cameraComponent.screenToWorld(x, y, cameraComponent.farClip, new pc.Vec3());
     const ray = new pc.Ray(from, to.sub(from).normalize());
     const hitPoint = new pc.Vec3();
-    const hit = pickModelEntity(ray, hitPoint);
-    const interaction = findInteractable(hit);
+    const interaction = pickInteractable(ray, hitPoint);
     interaction?.trigger?.();
 };
 
@@ -1099,8 +1183,7 @@ const pickHitPoint = new pc.Vec3();
 const getInteractionAhead = () => {
     if (!camera) return null;
     pickRay.set(camera.getPosition(), camera.forward);
-    const hit = pickModelEntity(pickRay, pickHitPoint, 2);
-    return findInteractable(hit);
+    return pickInteractable(pickRay, pickHitPoint, 2);
 };
 const getInteractionAtClient = (clientX, clientY) => {
     const cameraComponent = camera?.camera;
@@ -1114,8 +1197,7 @@ const getInteractionAtClient = (clientX, clientY) => {
     cameraComponent.screenToWorld(x, y, cameraComponent.farClip, pickTo);
     pickDir.sub2(pickTo, from).normalize();
     pickRay.set(from, pickDir);
-    const hit = pickModelEntity(pickRay, pickHitPoint);
-    return findInteractable(hit);
+    return pickInteractable(pickRay, pickHitPoint);
 };
 
 if (app.mouse) {
