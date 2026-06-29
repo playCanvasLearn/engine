@@ -51,11 +51,13 @@ createOptions.componentSystems = [
     pc.ModelComponentSystem,
     pc.CameraComponentSystem,
     pc.LightComponentSystem,
+    pc.ParticleSystemComponentSystem,
     pc.CollisionComponentSystem,
     pc.RigidBodyComponentSystem
 ].filter(Boolean);
 createOptions.resourceHandlers = [
     pc.TextureHandler,
+    pc.CubemapHandler,
     pc.JsonHandler,
     pc.ModelHandler
 ].filter(Boolean);
@@ -263,6 +265,31 @@ for (const def of TEXTURE_DEFINITIONS) {
     textureAssets.set(def.id, asset);
 }
 
+const extraTextureDefs = [
+    { id: 295898584, url: 'textures/cubemaps/bathroom_mirror/01.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898588, url: 'textures/cubemaps/bathroom_mirror/02.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898581, url: 'textures/cubemaps/bathroom_mirror/03.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898461, url: 'textures/cubemaps/bathroom_mirror/04.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898591, url: 'textures/cubemaps/bathroom_mirror/05.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898575, url: 'textures/cubemaps/bathroom_mirror/06.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898639, url: 'textures/cubemaps/hallway_mirror/01.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898643, url: 'textures/cubemaps/hallway_mirror/02.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898474, url: 'textures/cubemaps/hallway_mirror/03.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898585, url: 'textures/cubemaps/hallway_mirror/04.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898624, url: 'textures/cubemaps/hallway_mirror/05.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898600, url: 'textures/cubemaps/hallway_mirror/06.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false }
+];
+
+for (const def of extraTextureDefs) {
+    if (textureAssets.has(def.id)) continue;
+    const asset = new pc.Asset(`staff-home-texture-${def.id}`, 'texture', {
+        url: BASE_URL + def.url
+    }, textureOptionFromDef(def));
+    asset.id = def.id;
+    app.assets.add(asset);
+    textureAssets.set(def.id, asset);
+}
+
 const envAtlas = new pc.Asset('staff-home-env', 'texture', {
     url: './assets/cubemaps/helipad-env-atlas.png'
 }, {
@@ -272,6 +299,26 @@ const envAtlas = new pc.Asset('staff-home-env', 'texture', {
 app.assets.add(envAtlas);
 
 await loadAssets([...textureAssets.values(), envAtlas]);
+
+const bathroomMirrorCubemap = new pc.Asset('bathroom_mirror_cubemap', 'cubemap', null, {
+    textures: [295898588, 295898584, 295898461, 295898581, 295898575, 295898591],
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR,
+    magFilter: pc.FILTER_LINEAR,
+    anisotropy: 1
+});
+bathroomMirrorCubemap.id = 295898535;
+app.assets.add(bathroomMirrorCubemap);
+
+const hallwayMirrorCubemap = new pc.Asset('hallway_mirror_cubemap', 'cubemap', null, {
+    textures: [295898624, 295898600, 295898585, 295898474, 295898643, 295898639],
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR,
+    magFilter: pc.FILTER_LINEAR,
+    anisotropy: 1
+});
+hallwayMirrorCubemap.id = 295898586;
+app.assets.add(hallwayMirrorCubemap);
+
+await loadAssets([bathroomMirrorCubemap, hallwayMirrorCubemap]);
 
 const textureFromId = (id) => textureAssets.get(id)?.resource ?? null;
 const mapProperties = new Set([
@@ -311,6 +358,22 @@ for (const def of MATERIAL_DEFINITIONS) {
     for (const [key, value] of Object.entries(def.data)) {
         assignMaterialValue(material, key, value);
     }
+    if (def.id === 295898761) {
+        material.cubeMap = bathroomMirrorCubemap.resources?.[0] ?? null;
+        material.cubeMapProjection = pc.CUBEPROJ_BOX;
+        material.cubeMapProjectionBox = new pc.BoundingBox(
+            new pc.Vec3(2.5, 1.6, 2.35),
+            new pc.Vec3(7, 10, 10)
+        );
+    }
+    if (def.id === 295898767) {
+        material.cubeMap = hallwayMirrorCubemap.resources?.[0] ?? null;
+        material.cubeMapProjection = pc.CUBEPROJ_BOX;
+        material.cubeMapProjectionBox = new pc.BoundingBox(
+            new pc.Vec3(4, 1, 0),
+            new pc.Vec3(20, 12, 15)
+        );
+    }
     material.update();
 
     const asset = new pc.Asset(def.name, 'material');
@@ -338,6 +401,16 @@ app.scene.ambientLight = new pc.Color(...RENDER_SETTINGS.ambient);
 app.scene.envAtlas = envAtlas.resource;
 app.scene.exposure = RENDER_SETTINGS.exposure;
 app.scene.skyboxIntensity = RENDER_SETTINGS.skyboxIntensity;
+app.scene.skyboxMip = 0;
+app.scene.clusteredLightingEnabled = true;
+app.scene.lightmapMode = pc.BAKE_COLORDIR;
+app.scene.lightmapSizeMultiplier = 16;
+app.scene.lightmapMaxResolution = 2048;
+app.scene.lightmapFilterEnabled = false;
+app.scene.lighting.maxLightsPerCell = 255;
+app.scene.lighting.shadowsEnabled = true;
+app.scene.lighting.cookiesEnabled = false;
+app.scene.lighting.areaLightsEnabled = false;
 
 const nodes = new Map();
 for (const def of NODE_DEFINITIONS) {
@@ -389,6 +462,31 @@ for (const def of NODE_DEFINITIONS) {
     const parent = def.parent ? nodes.get(def.parent) : app.root;
     (parent ?? app.root).addChild(entity);
 }
+
+const sunLight = new pc.Entity('sun_light');
+sunLight.addComponent('light', {
+    type: 'directional',
+    isStatic: true,
+    bake: false,
+    affectDynamic: true,
+    affectLightmapped: false,
+    bakeDir: true,
+    color: new pc.Color(0.9647058823529412, 0.9176470588235294, 0.7450980392156863),
+    intensity: 0.8,
+    castShadows: true,
+    shadowType: 2,
+    shadowDistance: 10,
+    shadowResolution: 1024,
+    shadowBias: 0,
+    normalOffsetBias: 0,
+    vsmBlurMode: 1,
+    vsmBlurSize: 11,
+    vsmBias: 0.01,
+    shadowUpdateMode: 1
+});
+sunLight.setLocalPosition(-5.4987688064575195, 7.928093919819875e-16, 2.48415207862854);
+sunLight.setLocalEulerAngles(68, -58.5, 4);
+app.root.addChild(sunLight);
 
 const playOneShotAudio = (url, volume = 1) => {
     const audio = new Audio(url);
@@ -750,14 +848,420 @@ registerInteractable(await createToggleInteractor({
     }
 }));
 
+const faucetParticleSetup = new Map([
+    ['bathroomsink_faucet', {
+        water: 'sink_water_particle',
+        spray: 'sink_waterspray_particle'
+    }],
+    ['bathroomjacuzzi_faucet', {
+        water: 'jacuzzi_water_particle',
+        spray: 'jacuzzi_waterspray_particle'
+    }],
+    ['barsink_faucet', {
+        water: 'barsink_water_particle',
+        spray: 'barsink_waterspray_particle'
+    }]
+]);
+
+const particleDefinitions = new Map([
+    ['sink_water_particle', {
+        scale: [0.001, 0.001, 0.001],
+        data: {
+            enabled: true,
+            autoPlay: false,
+            numParticles: 512,
+            lifetime: 0.4,
+            rate: 1,
+            rate2: 0,
+            startAngle: 0,
+            startAngle2: 0,
+            loop: true,
+            preWarm: true,
+            lighting: false,
+            halfLambert: false,
+            intensity: 0.75,
+            depthWrite: false,
+            depthSoftening: 0,
+            sort: 0,
+            blendType: 2,
+            stretch: 0,
+            alignToMotion: false,
+            emitterShape: 1,
+            emitterExtents: [0, 0, 0],
+            emitterRadius: 1,
+            initialVelocity: 0,
+            animTilesX: 1,
+            animTilesY: 1,
+            animNumFrames: 1,
+            animSpeed: 1,
+            animLoop: true,
+            wrap: false,
+            wrapBounds: [1, 1, 1],
+            colorMapAsset: null,
+            normalMapAsset: null,
+            mesh: null,
+            localVelocityGraph: { type: 1, keys: [[0, 0], [0, 0], [0, 0]], betweenCurves: false },
+            localVelocityGraph2: { type: 1, keys: [[0, 0], [0, 0], [0, 0]] },
+            velocityGraph: { type: 0, keys: [[0, 0], [0, -650], [0, 0, 0, 0]], betweenCurves: false },
+            velocityGraph2: { type: 0, keys: [[0, 0], [0, -650], [0, 0, 0, 0]] },
+            rotationSpeedGraph: { type: 1, keys: [0, 0], betweenCurves: false },
+            rotationSpeedGraph2: { type: 1, keys: [0, 0] },
+            scaleGraph: { type: 0, keys: [0, 5], betweenCurves: true },
+            scaleGraph2: { type: 0, keys: [0, 11] },
+            colorGraph: { type: 2, keys: [[0, 0.917120021875], [0, 1], [0, 1]], betweenCurves: false },
+            alphaGraph: { type: 1, keys: [0, 0.4], betweenCurves: false },
+            alphaGraph2: { type: 1, keys: [0, 0.4] },
+            layers: [0],
+            renderAsset: null
+        }
+    }],
+    ['sink_waterspray_particle', {
+        scale: [0.0009303282130080784, 0.0009029446262500152, 0.0009303282130080784],
+        data: {
+            enabled: true,
+            autoPlay: false,
+            numParticles: 512,
+            lifetime: 0.4,
+            rate: 1,
+            rate2: 0,
+            startAngle: 0,
+            startAngle2: 0,
+            loop: true,
+            preWarm: true,
+            lighting: false,
+            halfLambert: false,
+            intensity: 0.75,
+            depthWrite: false,
+            depthSoftening: 0,
+            sort: 0,
+            blendType: 2,
+            stretch: 0,
+            alignToMotion: false,
+            emitterShape: 1,
+            emitterExtents: [0, 0, 0],
+            emitterRadius: 0,
+            initialVelocity: 0,
+            animTilesX: 1,
+            animTilesY: 1,
+            animNumFrames: 1,
+            animSpeed: 1,
+            animLoop: true,
+            wrap: false,
+            wrapBounds: [5, 5, 5],
+            colorMapAsset: null,
+            normalMapAsset: null,
+            mesh: null,
+            localVelocityGraph: { type: 1, keys: [[0, 0], [0, 0], [0, 0]], betweenCurves: false },
+            localVelocityGraph2: { type: 1, keys: [[0, 0], [0, 0], [0, 0]] },
+            velocityGraph: {
+                type: 1,
+                keys: [
+                    [0.4, 0, 0.4441860465116279, 595.875, 1, 715.05],
+                    [0.4, 0, 0.5813953488372093, 297.9375, 1, 496.5625],
+                    [0.4, 0, 0.4325581395348837, 547.15, 1, 794.25]
+                ],
+                betweenCurves: true
+            },
+            velocityGraph2: {
+                type: 1,
+                keys: [
+                    [0.4, 0, 0.45348837209302323, -417.11249999999995, 1, -511.85000000000014],
+                    [0.4, 0],
+                    [0.4, 0, 0.4372093023255814, -405.95000000000005, 1, -494.20000000000005]
+                ]
+            },
+            rotationSpeedGraph: { type: 1, keys: [0, 0], betweenCurves: false },
+            rotationSpeedGraph2: { type: 1, keys: [0, 0] },
+            scaleGraph: { type: 1, keys: [0.3, 0, 0.40232558139534885, 16.775], betweenCurves: true },
+            scaleGraph2: { type: 1, keys: [0.3, 0] },
+            colorGraph: { type: 2, keys: [[0, 0.917120021875], [0, 1], [0, 1]], betweenCurves: false },
+            alphaGraph: { type: 1, keys: [0.3, 0], betweenCurves: true },
+            alphaGraph2: { type: 1, keys: [0.3, 0, 0.349, 0.5] },
+            layers: [0],
+            renderAsset: null
+        }
+    }],
+    ['jacuzzi_water_particle', {
+        scale: [0.002, 0.0024084902112138347, 0.001],
+        data: {
+            enabled: true,
+            autoPlay: false,
+            numParticles: 512,
+            lifetime: 0.6,
+            rate: 1,
+            rate2: 0,
+            startAngle: 0,
+            startAngle2: 0,
+            loop: true,
+            preWarm: true,
+            lighting: false,
+            halfLambert: false,
+            intensity: 0.75,
+            depthWrite: false,
+            depthSoftening: 0,
+            sort: 0,
+            blendType: 2,
+            stretch: 0,
+            alignToMotion: false,
+            emitterShape: 1,
+            emitterExtents: [0, 0, 0],
+            emitterRadius: 1,
+            initialVelocity: 0,
+            animTilesX: 1,
+            animTilesY: 1,
+            animNumFrames: 1,
+            animSpeed: 1,
+            animLoop: true,
+            wrap: false,
+            wrapBounds: [5, 5, 5],
+            colorMapAsset: null,
+            normalMapAsset: null,
+            mesh: null,
+            localVelocityGraph: { type: 1, keys: [[0, 0], [0, 0], [0, 0]], betweenCurves: false },
+            localVelocityGraph2: { type: 1, keys: [[0, 0], [0, 0], [0, 0]] },
+            velocityGraph: { type: 0, keys: [[0, 0], [0, -650], [0, 0, 0, 0]], betweenCurves: false },
+            velocityGraph2: { type: 0, keys: [[0, 0], [0, -650], [0, 0, 0, 0]] },
+            rotationSpeedGraph: { type: 1, keys: [0, 0], betweenCurves: false },
+            rotationSpeedGraph2: { type: 1, keys: [0, 0] },
+            scaleGraph: { type: 0, keys: [0, 16], betweenCurves: true },
+            scaleGraph2: { type: 0, keys: [0, 9] },
+            colorGraph: { type: 2, keys: [[0, 0.917120021875], [0, 1], [0, 1]], betweenCurves: false },
+            alphaGraph: { type: 1, keys: [0, 0.4], betweenCurves: false },
+            alphaGraph2: { type: 1, keys: [0, 0.4] },
+            layers: [0],
+            renderAsset: null
+        }
+    }],
+    ['jacuzzi_waterspray_particle', {
+        scale: [0.0016235520499256126, 0.0015757638846375592, 0.0016235520499256126],
+        data: {
+            enabled: true,
+            autoPlay: false,
+            numParticles: 512,
+            lifetime: 0.4,
+            rate: 1,
+            rate2: 0,
+            startAngle: 0,
+            startAngle2: 0,
+            loop: true,
+            preWarm: true,
+            lighting: false,
+            halfLambert: false,
+            intensity: 0.75,
+            depthWrite: false,
+            depthSoftening: 0,
+            sort: 0,
+            blendType: 2,
+            stretch: 0,
+            alignToMotion: false,
+            emitterShape: 1,
+            emitterExtents: [0, 0, 0],
+            emitterRadius: 0,
+            initialVelocity: 0,
+            animTilesX: 1,
+            animTilesY: 1,
+            animNumFrames: 1,
+            animSpeed: 1,
+            animLoop: true,
+            wrap: false,
+            wrapBounds: [5, 5, 5],
+            colorMapAsset: null,
+            normalMapAsset: null,
+            mesh: null,
+            localVelocityGraph: { type: 1, keys: [[0, 0], [0, 0], [0, 0]], betweenCurves: false },
+            localVelocityGraph2: { type: 1, keys: [[0, 0], [0, 0], [0, 0]] },
+            velocityGraph: {
+                type: 1,
+                keys: [
+                    [0.4, 0, 0.4720930232558139, 704.8125, 1, 861.4375],
+                    [0.4, 0, 0.6186046511627907, 579.5125, 1, 720.475],
+                    [0.4, 0, 0.46511627906976744, 673.4875, 1, 794.25]
+                ],
+                betweenCurves: true
+            },
+            velocityGraph2: {
+                type: 1,
+                keys: [
+                    [0.4, 0, 0.4790697674418605, -673.4875000000002, 1, -689.1500000000001],
+                    [0.4, 0],
+                    [0.4, 0, 0.4790697674418605, -579.5124999999998, 1, -689.1500000000001]
+                ]
+            },
+            rotationSpeedGraph: { type: 1, keys: [0, 0], betweenCurves: false },
+            rotationSpeedGraph2: { type: 1, keys: [0, 0] },
+            scaleGraph: { type: 1, keys: [0.3, 0, 0.402, 25], betweenCurves: true },
+            scaleGraph2: { type: 1, keys: [0.3, 0] },
+            colorGraph: { type: 2, keys: [[0, 0.917120021875], [0, 1], [0, 1]], betweenCurves: false },
+            alphaGraph: { type: 1, keys: [0.3, 0], betweenCurves: true },
+            alphaGraph2: { type: 1, keys: [0.3, 0, 0.349, 0.5] },
+            layers: [0],
+            renderAsset: null
+        }
+    }],
+    ['barsink_water_particle', {
+        scale: [0.001, 0.001, 0.001],
+        data: {
+            enabled: true,
+            autoPlay: false,
+            numParticles: 512,
+            lifetime: 0.45,
+            rate: 1,
+            rate2: 0,
+            startAngle: 0,
+            startAngle2: 0,
+            loop: true,
+            preWarm: true,
+            lighting: false,
+            halfLambert: false,
+            intensity: 0.75,
+            depthWrite: false,
+            depthSoftening: 0,
+            sort: 0,
+            blendType: 2,
+            stretch: 0,
+            alignToMotion: false,
+            emitterShape: 1,
+            emitterExtents: [0.1, 0.1, 0.1],
+            emitterRadius: 1,
+            initialVelocity: 0,
+            animTilesX: 1,
+            animTilesY: 1,
+            animNumFrames: 1,
+            animSpeed: 1,
+            animLoop: true,
+            wrap: false,
+            wrapBounds: [1, 1, 1],
+            colorMapAsset: null,
+            normalMapAsset: null,
+            mesh: null,
+            localVelocityGraph: { type: 1, keys: [[0, 0], [0, 0], [0, 0]], betweenCurves: false },
+            localVelocityGraph2: { type: 1, keys: [[0, 0], [0, 0], [0, 0]] },
+            velocityGraph: { type: 0, keys: [[0, 0], [0, -650], [0, 0, 0, 0]], betweenCurves: false },
+            velocityGraph2: { type: 0, keys: [[0, 0], [0, -650], [0, 0, 0, 0]] },
+            rotationSpeedGraph: { type: 1, keys: [0, 0], betweenCurves: false },
+            rotationSpeedGraph2: { type: 1, keys: [0, 0] },
+            scaleGraph: { type: 0, keys: [0, 5], betweenCurves: true },
+            scaleGraph2: { type: 0, keys: [0, 11] },
+            colorGraph: { type: 2, keys: [[0, 0.917120021875], [0, 1], [0, 1]], betweenCurves: false },
+            alphaGraph: { type: 1, keys: [0, 0.4], betweenCurves: false },
+            alphaGraph2: { type: 1, keys: [0, 0.4] },
+            layers: [0],
+            renderAsset: null
+        }
+    }],
+    ['barsink_waterspray_particle', {
+        scale: [0.0009303282130080784, 0.0009029446262500152, 0.0009303282130080784],
+        data: {
+            enabled: true,
+            autoPlay: false,
+            numParticles: 512,
+            lifetime: 0.35,
+            rate: 1,
+            rate2: 0,
+            startAngle: 0,
+            startAngle2: 0,
+            loop: true,
+            preWarm: true,
+            lighting: false,
+            halfLambert: false,
+            intensity: 0.75,
+            depthWrite: false,
+            depthSoftening: 0,
+            sort: 0,
+            blendType: 2,
+            stretch: 0,
+            alignToMotion: false,
+            emitterShape: 1,
+            emitterExtents: [0, 0, 0],
+            emitterRadius: 0,
+            initialVelocity: 0,
+            animTilesX: 1,
+            animTilesY: 1,
+            animNumFrames: 1,
+            animSpeed: 1,
+            animLoop: true,
+            wrap: false,
+            wrapBounds: [5, 5, 5],
+            colorMapAsset: null,
+            normalMapAsset: null,
+            mesh: null,
+            localVelocityGraph: { type: 1, keys: [[0, 0], [0, 0], [0, 0]], betweenCurves: false },
+            localVelocityGraph2: { type: 1, keys: [[0, 0], [0, 0], [0, 0]] },
+            velocityGraph: {
+                type: 1,
+                keys: [
+                    [0.4, 0, 0.4441860465116279, 595.875, 1, 715.05],
+                    [0.4, 0, 0.5813953488372093, 297.9375, 1, 496.5625],
+                    [0.4, 0, 0.4325581395348837, 547.15, 1, 794.25]
+                ],
+                betweenCurves: true
+            },
+            velocityGraph2: {
+                type: 1,
+                keys: [
+                    [0.4, 0, 0.45348837209302323, -417.11249999999995, 1, -511.85000000000014],
+                    [0.4, 0],
+                    [0.4, 0, 0.4372093023255814, -405.95000000000005, 1, -494.20000000000005]
+                ]
+            },
+            rotationSpeedGraph: { type: 1, keys: [0, 0], betweenCurves: false },
+            rotationSpeedGraph2: { type: 1, keys: [0, 0] },
+            scaleGraph: { type: 1, keys: [0.3, 0, 0.40232558139534885, 16.775], betweenCurves: true },
+            scaleGraph2: { type: 1, keys: [0.3, 0] },
+            colorGraph: { type: 2, keys: [[0, 0.917120021875], [0, 1], [0, 1]], betweenCurves: false },
+            alphaGraph: { type: 1, keys: [0.3, 0], betweenCurves: true },
+            alphaGraph2: { type: 1, keys: [0.3, 0, 0.349, 0.5] },
+            layers: [0],
+            renderAsset: null
+        }
+    }]
+]);
+
+const ensureFaucetParticles = (faucetName) => {
+    const setup = faucetParticleSetup.get(faucetName);
+    if (!setup) return null;
+    const parent = app.root.findByName(faucetName);
+    if (!parent) return null;
+
+    const ensureOne = (particleName) => {
+        const existing = app.root.findByName(particleName);
+        if (existing?.particlesystem) return existing;
+        const def = particleDefinitions.get(particleName);
+        if (!def) return null;
+        const entity = new pc.Entity(particleName);
+        entity.setLocalPosition(0, 0, 0);
+        entity.setLocalEulerAngles(0, 0, 0);
+        entity.setLocalScale(def.scale[0], def.scale[1], def.scale[2]);
+        entity.addComponent('particlesystem', def.data);
+        parent.addChild(entity);
+        return entity;
+    };
+
+    const waterEntity = ensureOne(setup.water);
+    const sprayEntity = ensureOne(setup.spray);
+    return {
+        water: waterEntity?.particlesystem ?? null,
+        spray: sprayEntity?.particlesystem ?? null
+    };
+};
+
 const createFaucetInteractor = async (entityName, openAnim, closeAnim) => {
     const loop = createLoopAudio(`${SOUNDS_URL}sinkwater_loop.wav`, 0.6);
+    const particles = ensureFaucetParticles(entityName);
     return createToggleInteractor({
         entityName,
         openAnim,
         closeAnim,
-        onOpenSound: () => loop.play(),
+        onOpenSound: () => {
+            particles?.water?.reset?.();
+            particles?.spray?.reset?.();
+            particles?.water?.play?.();
+            particles?.spray?.play?.();
+            loop.play();
+        },
         onCloseStart: () => {
+            particles?.water?.stop?.();
+            particles?.spray?.stop?.();
             loop.stop();
             playOneShotAudio(`${SOUNDS_URL}sinkwater_off.wav`, 0.75);
         }
@@ -857,6 +1361,161 @@ if (!camera) {
     });
     app.root.addChild(camera);
 }
+
+class StaffHomeBloomEffect extends pc.PostEffect {
+    constructor(device) {
+        super(device);
+        this.bloomIntensity = 1;
+        this.bloomThreshold = 0.25;
+        this.blurAmount = 4;
+        this._resolution = new Float32Array(2);
+        this._direction = new Float32Array(2);
+        this._targets = [];
+
+        const attributes = { aPosition: pc.SEMANTIC_POSITION };
+        const vshader = [
+            'attribute vec2 aPosition;',
+            'varying vec2 vUv;',
+            'void main(void) {',
+            '    vUv = aPosition * 0.5 + 0.5;',
+            '    gl_Position = vec4(aPosition, 0.0, 1.0);',
+            '}'
+        ].join('\n');
+
+        const fExtract = [
+            `precision ${device.precision} float;`,
+            'varying vec2 vUv;',
+            'uniform sampler2D uColorBuffer;',
+            'uniform float uThreshold;',
+            'void main(void) {',
+            '    vec3 c = texture2D(uColorBuffer, vUv).rgb;',
+            '    float l = max(max(c.r, c.g), c.b);',
+            '    float m = step(uThreshold, l);',
+            '    gl_FragColor = vec4(c * m, 1.0);',
+            '}'
+        ].join('\n');
+
+        const fBlur = [
+            `precision ${device.precision} float;`,
+            'varying vec2 vUv;',
+            'uniform sampler2D uBaseTexture;',
+            'uniform vec2 uDirection;',
+            'void main(void) {',
+            '    vec3 result = texture2D(uBaseTexture, vUv).rgb * 0.2270270270;',
+            '    result += texture2D(uBaseTexture, vUv + uDirection * 1.3846153846).rgb * 0.3162162162;',
+            '    result += texture2D(uBaseTexture, vUv - uDirection * 1.3846153846).rgb * 0.3162162162;',
+            '    result += texture2D(uBaseTexture, vUv + uDirection * 3.2307692308).rgb * 0.0702702703;',
+            '    result += texture2D(uBaseTexture, vUv - uDirection * 3.2307692308).rgb * 0.0702702703;',
+            '    gl_FragColor = vec4(result, 1.0);',
+            '}'
+        ].join('\n');
+
+        const fCombine = [
+            `precision ${device.precision} float;`,
+            'varying vec2 vUv;',
+            'uniform sampler2D uSceneTex;',
+            'uniform sampler2D uBloomTex;',
+            'uniform float uIntensity;',
+            'void main(void) {',
+            '    vec3 scene = texture2D(uSceneTex, vUv).rgb;',
+            '    vec3 bloom = texture2D(uBloomTex, vUv).rgb;',
+            '    gl_FragColor = vec4(scene + bloom * uIntensity, 1.0);',
+            '}'
+        ].join('\n');
+
+        this._extractShader = new pc.Shader(device, { attributes, vshader, fshader: fExtract });
+        this._blurShader = new pc.Shader(device, { attributes, vshader, fshader: fBlur });
+        this._combineShader = new pc.Shader(device, { attributes, vshader, fshader: fCombine });
+    }
+
+    _createTarget(width, height, name) {
+        const texture = new pc.Texture(this.device, {
+            name,
+            width,
+            height,
+            format: pc.PIXELFORMAT_R8_G8_B8_A8,
+            mipmaps: false,
+            minFilter: pc.FILTER_LINEAR,
+            magFilter: pc.FILTER_LINEAR,
+            addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+            addressV: pc.ADDRESS_CLAMP_TO_EDGE
+        });
+        return new pc.RenderTarget(this.device, texture, { depth: false });
+    }
+
+    _ensureTargets(inputTarget) {
+        const src = inputTarget?.colorBuffer;
+        if (!src) return false;
+
+        const w = Math.max(1, src.width >> 1);
+        const h = Math.max(1, src.height >> 1);
+
+        const t0 = this._targets[0];
+        if (t0 && t0.colorBuffer?.width === w && t0.colorBuffer?.height === h) return true;
+
+        for (const t of this._targets) {
+            t?.destroy?.();
+        }
+        this._targets.length = 0;
+        this._targets[0] = this._createTarget(w, h, 'staff-home-bloom-a');
+        this._targets[1] = this._createTarget(w, h, 'staff-home-bloom-b');
+        return true;
+    }
+
+    render(inputTarget, outputTarget, rect) {
+        if (!this._ensureTargets(inputTarget)) return;
+
+        const device = this.device;
+        const scope = device.scope;
+
+        const tA = this._targets[0];
+        const tB = this._targets[1];
+
+        scope.resolve('uColorBuffer').setValue(inputTarget.colorBuffer);
+        scope.resolve('uThreshold').setValue(this.bloomThreshold);
+        pc.drawFullscreenQuad(device, tA, this.vertexBuffer, this._extractShader, rect);
+
+        const passes = Math.max(1, Math.floor(this.blurAmount));
+        this._resolution[0] = 1 / tA.colorBuffer.width;
+        this._resolution[1] = 1 / tA.colorBuffer.height;
+
+        for (let i = 0; i < passes; i++) {
+            scope.resolve('uBaseTexture').setValue(tA.colorBuffer);
+            this._direction[0] = this._resolution[0];
+            this._direction[1] = 0;
+            scope.resolve('uDirection').setValue(this._direction);
+            pc.drawFullscreenQuad(device, tB, this.vertexBuffer, this._blurShader, rect);
+
+            scope.resolve('uBaseTexture').setValue(tB.colorBuffer);
+            this._direction[0] = 0;
+            this._direction[1] = this._resolution[1];
+            scope.resolve('uDirection').setValue(this._direction);
+            pc.drawFullscreenQuad(device, tA, this.vertexBuffer, this._blurShader, rect);
+        }
+
+        scope.resolve('uSceneTex').setValue(inputTarget.colorBuffer);
+        scope.resolve('uBloomTex').setValue(tA.colorBuffer);
+        scope.resolve('uIntensity').setValue(this.bloomIntensity);
+        pc.drawFullscreenQuad(device, outputTarget, this.vertexBuffer, this._combineShader, rect);
+    }
+}
+
+const ENABLE_POST_EFFECTS = false;
+
+const ensurePostEffects = () => {
+    if (!ENABLE_POST_EFFECTS) return;
+    const cameraComponent = camera?.camera;
+    if (!cameraComponent) return;
+
+    const postEffects = cameraComponent.postEffects;
+    if (!pc.PostEffect || !pc.Shader || !pc.drawFullscreenQuad) return;
+    const bloom = new StaffHomeBloomEffect(app.graphicsDevice);
+    bloom.bloomIntensity = 1;
+    bloom.bloomThreshold = 0.25;
+    bloom.blurAmount = 4;
+    postEffects.addEffect(bloom);
+};
+ensurePostEffects();
 
 const eyeHeight = 0.85;
 const yawPivot = new pc.Entity('player-yaw');
