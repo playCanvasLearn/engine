@@ -840,13 +840,12 @@ player.addChild(yawPivot);
 
 const attachCameraToPlayer = () => {
     const camPos = camera.getPosition().clone();
-    const camRot = camera.getRotation().clone();
     player.setPosition(camPos.x, camPos.y - eyeHeight, camPos.z);
     yawPivot.setLocalEulerAngles(0, 0, 0);
     pitchPivot.setLocalEulerAngles(0, 0, 0);
     camera.reparent(pitchPivot);
     camera.setLocalPosition(0, 0, 0);
-    camera.setRotation(camRot);
+    camera.setLocalEulerAngles(0, 0, 0);
 };
 
 const detachCameraFromPlayer = () => {
