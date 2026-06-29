@@ -1,19 +1,20 @@
 // @config
 //
-// 职工之家 - 基于 Hotel Showcase 导出资源重构为 PlayCanvas Engine 示例加载器。
+// 职工之家 - 纯 PlayCanvas Engine 版，运行时直接装配模型/材质/节点树，
+// 不再依赖 PlayCanvas Editor 导出的 config/scene/scripts/ammo 启动链路。
 
 import * as pc from 'playcanvas';
 
 import { deviceType } from 'examples/context';
+import { MATERIAL_DEFINITIONS, MODEL_DEFINITIONS, TEXTURE_DEFINITIONS } from './assets.mjs';
+import { NODE_DEFINITIONS, RENDER_SETTINGS } from './scene.mjs';
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('application-canvas'));
 window.focus();
 
-pc.script.legacy = false;
-
 const BASE_URL = './assets/scene/staff-home/';
-const CONFIG_URL = `${BASE_URL}config.json`;
-const SCENE_NAME = '2531838.json';
+const APP_WIDTH = 1920;
+const APP_HEIGHT = 1080;
 
 const INPUT_SETTINGS = {
     useKeyboard: true,
@@ -21,7 +22,6 @@ const INPUT_SETTINGS = {
     useGamepads: false,
     useTouch: true
 };
-
 const deviceTypes = [...new Set([deviceType, 'webgl2', 'webgl1'].filter(Boolean))];
 const device = await pc.createGraphicsDevice(canvas, {
     deviceTypes,
@@ -30,60 +30,20 @@ const device = await pc.createGraphicsDevice(canvas, {
     preserveDrawingBuffer: false,
     powerPreference: 'default'
 });
+device.maxPixelRatio = Math.min(window.devicePixelRatio, 2);
 
 const createOptions = new pc.AppOptions();
 createOptions.graphicsDevice = device;
 createOptions.componentSystems = [
-    pc.AnimationComponentSystem,
-    pc.AnimComponentSystem,
     pc.ModelComponentSystem,
-    pc.RenderComponentSystem,
     pc.CameraComponentSystem,
-    pc.LightComponentSystem,
-    pc.ScriptComponentSystem,
-    pc.AudioSourceComponentSystem,
-    pc.SoundComponentSystem,
-    pc.AudioListenerComponentSystem,
-    pc.ParticleSystemComponentSystem,
-    pc.ScreenComponentSystem,
-    pc.ElementComponentSystem,
-    pc.ButtonComponentSystem,
-    pc.ScrollViewComponentSystem,
-    pc.ScrollbarComponentSystem,
-    pc.SpriteComponentSystem,
-    pc.LayoutGroupComponentSystem,
-    pc.LayoutChildComponentSystem,
-    pc.ZoneComponentSystem,
-    pc.GSplatComponentSystem
+    pc.LightComponentSystem
 ].filter(Boolean);
 createOptions.resourceHandlers = [
-    pc.RenderHandler,
-    pc.AnimationHandler,
-    pc.AnimClipHandler,
-    pc.AnimStateGraphHandler,
-    pc.ModelHandler,
-    pc.MaterialHandler,
     pc.TextureHandler,
-    pc.TextHandler,
     pc.JsonHandler,
-    pc.AudioHandler,
-    pc.ScriptHandler,
-    pc.SceneHandler,
-    pc.CubemapHandler,
-    pc.HtmlHandler,
-    pc.CssHandler,
-    pc.ShaderHandler,
-    pc.HierarchyHandler,
-    pc.FolderHandler,
-    pc.FontHandler,
-    pc.BinaryHandler,
-    pc.TextureAtlasHandler,
-    pc.SpriteHandler,
-    pc.TemplateHandler,
-    pc.ContainerHandler,
-    pc.GSplatHandler
+    pc.ModelHandler
 ].filter(Boolean);
-
 createOptions.elementInput = new pc.ElementInput(canvas, {
     useMouse: INPUT_SETTINGS.useMouse,
     useTouch: INPUT_SETTINGS.useTouch
@@ -92,20 +52,16 @@ createOptions.keyboard = INPUT_SETTINGS.useKeyboard ? new pc.Keyboard(window) : 
 createOptions.mouse = INPUT_SETTINGS.useMouse ? new pc.Mouse(canvas) : null;
 createOptions.gamepads = INPUT_SETTINGS.useGamepads ? new pc.GamePads() : null;
 createOptions.touch = INPUT_SETTINGS.useTouch && pc.platform.touch ? new pc.TouchDevice(canvas) : null;
-createOptions.assetPrefix = BASE_URL;
-createOptions.scriptPrefix = BASE_URL;
-createOptions.scriptsOrder = [];
 createOptions.soundManager = new pc.SoundManager();
-createOptions.lightmapper = pc.Lightmapper;
-createOptions.batchManager = pc.BatchManager;
-createOptions.xr = pc.XrManager;
 
 const app = new pc.AppBase(canvas);
 app.init(createOptions);
+app.setCanvasFillMode(pc.FILLMODE_KEEP_ASPECT);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
 
 const ensureCanvasCss = () => {
     const style = document.createElement('style');
-    style.textContent = `@media screen and (min-aspect-ratio: ${app._width}/${app._height}) {
+    style.textContent = `@media screen and (min-aspect-ratio: ${APP_WIDTH}/${APP_HEIGHT}) {
         #application-canvas.fill-mode-KEEP_ASPECT {
             width: auto;
             height: 100%;
@@ -115,7 +71,7 @@ const ensureCanvasCss = () => {
     document.head.appendChild(style);
 
     if (canvas.classList) {
-        canvas.classList.add(`fill-mode-${app.fillMode}`);
+        canvas.classList.add('fill-mode-KEEP_ASPECT');
     }
 
     app.on('destroy', () => {
@@ -220,15 +176,15 @@ const createToolbar = () => {
 const computeSceneBounds = () => {
     const aabb = new pc.BoundingBox();
     let hasBounds = false;
-    const renders = app.root.findComponents('render');
-    for (const render of renders) {
-        for (const mi of render.meshInstances) {
-            if (!mi?.aabb) continue;
+    const models = app.root.findComponents('model');
+    for (const model of models) {
+        for (const meshInstance of model.meshInstances) {
+            if (!meshInstance?.aabb) continue;
             if (!hasBounds) {
-                aabb.copy(mi.aabb);
+                aabb.copy(meshInstance.aabb);
                 hasBounds = true;
             } else {
-                aabb.add(mi.aabb);
+                aabb.add(meshInstance.aabb);
             }
         }
     }
@@ -239,61 +195,188 @@ const computeSceneBounds = () => {
     return aabb;
 };
 
-const createPatchedConfigUrl = async () => {
-    const response = await fetch(CONFIG_URL);
-    if (!response.ok) {
-        throw new Error(`Failed to load config: ${CONFIG_URL}`);
+const loadAssets = (assets) => new Promise((resolve, reject) => {
+    if (!assets.length) {
+        resolve();
+        return;
     }
-    const config = await response.json();
-    const appProps = config.application_properties;
-    if (appProps && typeof appProps === 'object') {
-        appProps.libraries = [];
-        appProps.use3dPhysics = false;
-        appProps.useLegacyAmmoPhysics = false;
-        appProps.scripts = [];
+
+    let remaining = assets.length;
+    let failed = false;
+
+    const onComplete = () => {
+        remaining -= 1;
+        if (!failed && remaining === 0) {
+            resolve();
+        }
+    };
+
+    for (const asset of assets) {
+        asset.once('load', onComplete);
+        asset.once('error', (err) => {
+            if (!failed) {
+                failed = true;
+                reject(err instanceof Error ? err : new Error(String(err)));
+            }
+        });
+        app.assets.load(asset);
     }
-    const blob = new Blob([JSON.stringify(config)], { type: 'application/json' });
-    return URL.createObjectURL(blob);
+});
+
+const textureOptionFromDef = (def) => {
+    const options = {
+        mipmaps: def.mipmaps,
+        anisotropy: def.anisotropy
+    };
+
+    if (def.rgbm) {
+        options.type = pc.TEXTURETYPE_RGBM;
+    }
+    if (def.srgb) {
+        options.srgb = true;
+    }
+    return options;
 };
 
-const configureApp = () => new Promise((resolve, reject) => {
-    createPatchedConfigUrl().then((url) => {
-        app.configure(url, (err) => {
-            URL.revokeObjectURL(url);
-            if (err) {
-                reject(err);
-                return;
-            }
-            resolve(true);
+const textureAssets = new Map();
+for (const def of TEXTURE_DEFINITIONS) {
+    const asset = new pc.Asset(`staff-home-texture-${def.id}`, 'texture', {
+        url: BASE_URL + def.url
+    }, textureOptionFromDef(def));
+    asset.id = def.id;
+    app.assets.add(asset);
+    textureAssets.set(def.id, asset);
+}
+
+const envAtlas = new pc.Asset('staff-home-env', 'texture', {
+    url: './assets/cubemaps/helipad-env-atlas.png'
+}, {
+    type: pc.TEXTURETYPE_RGBP,
+    mipmaps: false
+});
+app.assets.add(envAtlas);
+
+await loadAssets([...textureAssets.values(), envAtlas]);
+
+const textureFromId = (id) => textureAssets.get(id)?.resource ?? null;
+const mapProperties = new Set([
+    'aoMap',
+    'diffuseMap',
+    'specularMap',
+    'metalnessMap',
+    'glossMap',
+    'emissiveMap',
+    'normalMap',
+    'opacityMap',
+    'lightMap'
+]);
+
+const assignMaterialValue = (material, key, value) => {
+    if (mapProperties.has(key)) {
+        material[key] = textureFromId(value);
+        return;
+    }
+
+    if (Array.isArray(value)) {
+        if (value.length === 3) {
+            material[key] = new pc.Color(value[0], value[1], value[2]);
+            return;
+        }
+        if (value.length === 2) {
+            material[key] = new pc.Vec2(value[0], value[1]);
+            return;
+        }
+    }
+
+    material[key] = value;
+};
+
+for (const def of MATERIAL_DEFINITIONS) {
+    const material = new pc.StandardMaterial();
+    for (const [key, value] of Object.entries(def.data)) {
+        assignMaterialValue(material, key, value);
+    }
+    material.update();
+
+    const asset = new pc.Asset(def.name, 'material');
+    asset.id = def.id;
+    asset.resource = material;
+    asset.loaded = true;
+    app.assets.add(asset);
+}
+
+const modelAssets = [];
+for (const def of MODEL_DEFINITIONS) {
+    const asset = new pc.Asset(def.name, 'model', {
+        url: BASE_URL + def.url
+    }, {
+        mapping: def.mapping.map((material) => ({ material }))
+    });
+    asset.id = def.id;
+    app.assets.add(asset);
+    modelAssets.push(asset);
+}
+
+await loadAssets(modelAssets);
+
+app.scene.ambientLight = new pc.Color(...RENDER_SETTINGS.ambient);
+app.scene.envAtlas = envAtlas.resource;
+app.scene.exposure = RENDER_SETTINGS.exposure;
+app.scene.skyboxIntensity = RENDER_SETTINGS.skyboxIntensity;
+
+const nodes = new Map();
+for (const def of NODE_DEFINITIONS) {
+    const entity = new pc.Entity(def.name);
+    entity.setLocalPosition(...def.position);
+    entity.setLocalEulerAngles(...def.rotation);
+    entity.setLocalScale(...def.scale);
+    entity.enabled = def.enabled !== false;
+
+    if (def.model?.asset) {
+        entity.addComponent('model', {
+            type: 'asset',
+            asset: def.model.asset,
+            castShadows: false,
+            receiveShadows: false
         });
-    }).catch(reject);
-});
+    }
 
-const preloadApp = () => new Promise((resolve, reject) => {
-    app.preload((err) => {
-        if (err) {
-            reject(err);
-            return;
-        }
-        resolve(true);
-    });
-});
+    if (def.light) {
+        entity.addComponent('light', {
+            type: def.light.type,
+            color: new pc.Color(...def.light.color),
+            intensity: def.light.intensity,
+            range: def.light.range,
+            innerConeAngle: def.light.innerConeAngle,
+            outerConeAngle: def.light.outerConeAngle,
+            castShadows: def.light.castShadows,
+            shadowBias: def.light.shadowBias,
+            normalOffsetBias: def.light.normalOffsetBias
+        });
+    }
 
-const loadScene = () => new Promise((resolve, reject) => {
-    app.scenes.loadScene(SCENE_NAME, (err) => {
-        if (err) {
-            reject(err);
-            return;
-        }
-        resolve(true);
-    });
-});
+    if (def.camera) {
+        entity.addComponent('camera', {
+            fov: def.camera.fov,
+            nearClip: def.camera.nearClip,
+            farClip: def.camera.farClip,
+            projection: def.camera.projection,
+            clearColor: new pc.Color(0.05, 0.06, 0.08),
+            toneMapping: pc.TONEMAP_ACES2
+        });
+    }
 
-await configureApp();
+    nodes.set(def.id, entity);
+}
+
+for (const def of NODE_DEFINITIONS) {
+    const entity = nodes.get(def.id);
+    const parent = def.parent ? nodes.get(def.parent) : app.root;
+    (parent ?? app.root).addChild(entity);
+}
+
 ensureCanvasCss();
 resize();
-await preloadApp();
-await loadScene();
 app.start();
 
 const pickSceneCameraEntity = () => {
@@ -301,6 +384,8 @@ const pickSceneCameraEntity = () => {
     if (!cameras?.length) return null;
 
     const preferred = cameras.find((c) => /camera/i.test(c.entity.name)) ?? cameras[0];
+    preferred.aspectRatioMode = pc.ASPECT_AUTO;
+    preferred.toneMapping = pc.TONEMAP_ACES2;
     return preferred?.entity ?? null;
 };
 
