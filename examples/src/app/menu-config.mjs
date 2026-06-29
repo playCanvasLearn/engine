@@ -273,6 +273,10 @@ export const menuOverrides = {
                     "label": "机床展览馆",
                     "hidden": false
                 },
+                "staff-home": {
+                    "label": "职工之家",
+                    "hidden": false
+                },
                 "gallery": {
                     "label": "雕塑展览馆",
                     "hidden": true

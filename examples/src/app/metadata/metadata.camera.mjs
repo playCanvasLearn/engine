@@ -40,5 +40,11 @@ export const exampleMetaData = [
         categoryKebab: "camera",
         exampleNameKebab: "orbit",
         hidden: false
+    },
+    {
+        path: "src\\examples\\camera",
+        categoryKebab: "camera",
+        exampleNameKebab: "staff-home",
+        hidden: false
     }
 ];
