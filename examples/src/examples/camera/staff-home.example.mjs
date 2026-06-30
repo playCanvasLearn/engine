@@ -896,13 +896,20 @@ const faucetParticleSetup = new Map([
     }]
 ]);
 
-const faucetParticleScaleTuning = new Map([
-    ['sink_water_particle', [0.74, 0.96, 0.74]],
-    ['sink_waterspray_particle', [0.68, 0.9, 0.68]],
-    ['jacuzzi_water_particle', [0.7, 0.95, 0.7]],
-    ['jacuzzi_waterspray_particle', [0.62, 0.88, 0.62]],
-    ['barsink_water_particle', [0.72, 0.96, 0.72]],
-    ['barsink_waterspray_particle', [0.66, 0.9, 0.66]]
+const faucetParticleTuning = new Map([
+    ['sink_water_particle', {
+        scaleMultiplier: [0.14, 0.14, 0.14],
+        emitterRadius: 0.04
+    }],
+    ['jacuzzi_water_particle', {
+        scaleMultiplier: [0.11, 0.11, 0.11],
+        emitterRadius: 0.03
+    }],
+    ['barsink_water_particle', {
+        scaleMultiplier: [0.14, 0.14, 0.14],
+        emitterRadius: 0.04,
+        emitterExtents: [0.012, 0.012, 0.012]
+    }]
 ]);
 
 const particleDefinitions = new Map([
@@ -1277,17 +1284,41 @@ const ensureFaucetParticles = async (faucetName) => {
     const parent = app.root.findByName(setup.parent);
     if (!parent) return null;
     const defs = particleDefinitions;
-    const parentWorldScale = parent.getWorldTransform().getScale();
+    const cloneParticleValue = (value) => {
+        if (Array.isArray(value)) {
+            return value.map((entry) => cloneParticleValue(entry));
+        }
+        if (value && typeof value === 'object') {
+            const clone = {};
+            for (const [key, entry] of Object.entries(value)) {
+                clone[key] = cloneParticleValue(entry);
+            }
+            return clone;
+        }
+        return value;
+    };
+
+    const buildParticleData = (particleName, def) => {
+        const tuning = faucetParticleTuning.get(particleName);
+        const data = cloneParticleValue(def.data);
+        if (!tuning) return data;
+        if (typeof tuning.emitterRadius === 'number') {
+            data.emitterRadius = tuning.emitterRadius;
+        }
+        if (Array.isArray(tuning.emitterExtents)) {
+            data.emitterExtents = tuning.emitterExtents.slice();
+        }
+        return data;
+    };
 
     const applyParticleTransform = (entity, particleName, def) => {
-        const tuning = faucetParticleScaleTuning.get(particleName) ?? [1, 1, 1];
+        const tuning = faucetParticleTuning.get(particleName);
+        const sx = tuning?.scaleMultiplier?.[0] ?? 1;
+        const sy = tuning?.scaleMultiplier?.[1] ?? 1;
+        const sz = tuning?.scaleMultiplier?.[2] ?? 1;
         entity.setLocalPosition(def.position[0], def.position[1], def.position[2]);
         entity.setLocalEulerAngles(def.rotation[0], def.rotation[1], def.rotation[2]);
-        entity.setLocalScale(
-            (def.scale[0] * tuning[0]) / (Math.abs(parentWorldScale.x) > 1e-6 ? parentWorldScale.x : 1),
-            (def.scale[1] * tuning[1]) / (Math.abs(parentWorldScale.y) > 1e-6 ? parentWorldScale.y : 1),
-            (def.scale[2] * tuning[2]) / (Math.abs(parentWorldScale.z) > 1e-6 ? parentWorldScale.z : 1)
-        );
+        entity.setLocalScale(def.scale[0] * sx, def.scale[1] * sy, def.scale[2] * sz);
     };
 
     const ensureOne = (particleName) => {
@@ -1299,6 +1330,8 @@ const ensureFaucetParticles = async (faucetName) => {
                 parent.addChild(existing);
             }
             applyParticleTransform(existing, particleName, def);
+            existing.removeComponent('particlesystem');
+            existing.addComponent('particlesystem', buildParticleData(particleName, def));
             if (!existing.model) {
                 existing.addComponent('model', {
                     enabled: false,
@@ -1334,7 +1367,7 @@ const ensureFaucetParticles = async (faucetName) => {
             batchGroupId: null,
             layers: [0]
         });
-        entity.addComponent('particlesystem', def.data);
+        entity.addComponent('particlesystem', buildParticleData(particleName, def));
         return entity;
     };
 
@@ -1375,6 +1408,8 @@ const createFaucetInteractor = async (entityName, openAnim, closeAnim) => {
         animationSpeed: 0,
         animationTimeSeconds: 0,
         soundIsPlaying: false,
+        sprayDelaySeconds: 0,
+        sprayHasStarted: false,
         clip: null
     };
 
@@ -1393,9 +1428,14 @@ const createFaucetInteractor = async (entityName, openAnim, closeAnim) => {
             playOneShotAudio(`${SOUNDS_URL}sinkwater_off.wav`, 0.75);
             particles?.water?.stop?.();
             particles?.spray?.stop?.();
+            state.sprayHasStarted = false;
+            state.sprayDelaySeconds = 0;
         } else {
             particles?.water?.play?.();
-            particles?.spray?.play?.();
+            particles?.spray?.stop?.();
+            state.sprayHasStarted = false;
+            const total = state.animationDurationSeconds / (state.animationSpeed || 1);
+            state.sprayDelaySeconds = Math.min(0.4, total / 3);
             if (!state.soundIsPlaying) {
                 state.soundIsPlaying = true;
                 loop.play();
@@ -1416,10 +1456,16 @@ const createFaucetInteractor = async (entityName, openAnim, closeAnim) => {
         const t = total > 0 ? Math.min(state.animationTimeSeconds, total) : 0;
         player.apply(state.clip, t);
 
+        if (state.isTurnedOn && !state.sprayHasStarted && state.animationTimeSeconds >= state.sprayDelaySeconds) {
+            particles?.spray?.play?.();
+            state.sprayHasStarted = true;
+        }
+
         if (state.animationTimeSeconds >= total) {
             state.animationTimeSeconds = 0;
             state.animationIsPlaying = false;
             state.soundIsPlaying = false;
+            state.sprayHasStarted = false;
         }
     };
 
