@@ -474,7 +474,7 @@ for (const def of NODE_DEFINITIONS) {
             farClip: def.camera.farClip,
             projection: def.camera.projection,
             clearColor: new pc.Color(0.05, 0.06, 0.08),
-            toneMapping: pc.TONEMAP_ACES2
+            toneMapping: RENDER_SETTINGS.toneMapping
         });
     }
 
@@ -1252,13 +1252,33 @@ const ensureFaucetParticles = (faucetName) => {
 
     const ensureOne = (particleName) => {
         const existing = app.root.findByName(particleName);
-        if (existing?.particlesystem) return existing;
+        if (existing?.particlesystem) {
+            if (!existing.model) {
+                existing.addComponent('model', {
+                    enabled: false,
+                    type: 'capsule',
+                    castShadows: false,
+                    receiveShadows: false,
+                    lightmapped: false,
+                    layers: [0]
+                });
+            }
+            return existing;
+        }
         const def = particleDefinitions.get(particleName);
         if (!def) return null;
         const entity = new pc.Entity(particleName);
         entity.setLocalPosition(0, 0, 0);
         entity.setLocalEulerAngles(0, 0, 0);
         entity.setLocalScale(def.scale[0], def.scale[1], def.scale[2]);
+        entity.addComponent('model', {
+            enabled: false,
+            type: 'capsule',
+            castShadows: false,
+            receiveShadows: false,
+            lightmapped: false,
+            layers: [0]
+        });
         entity.addComponent('particlesystem', def.data);
         parent.addChild(entity);
         return entity;
@@ -1373,7 +1393,7 @@ const pickSceneCameraEntity = () => {
 
     const preferred = cameras.find((c) => /camera/i.test(c.entity.name)) ?? cameras[0];
     preferred.aspectRatioMode = pc.ASPECT_AUTO;
-    preferred.toneMapping = pc.TONEMAP_ACES2;
+    preferred.toneMapping = RENDER_SETTINGS.toneMapping;
     return preferred?.entity ?? null;
 };
 
@@ -1384,7 +1404,7 @@ if (!camera) {
         clearColor: new pc.Color(0.05, 0.06, 0.08),
         farClip: 2000,
         fov: 65,
-        toneMapping: pc.TONEMAP_ACES2
+        toneMapping: RENDER_SETTINGS.toneMapping
     });
     app.root.addChild(camera);
 }
