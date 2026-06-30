@@ -709,6 +709,110 @@ const createToggleInteractor = async (options) => {
     const closeClip = await loadLegacyAnim(options.closeAnim);
     const player = createLegacyAnimPlayer(entity);
 
+    const computeEntityModelAabb = (targetEntity, outAabb, rootNodeName) => {
+        const modelComponent = targetEntity?.model;
+        const meshInstances = modelComponent?.meshInstances;
+        if (!meshInstances?.length) return false;
+
+        const graph = modelComponent?.model?.graph ?? null;
+        const rootNode = rootNodeName && graph ? (graph.findByName(rootNodeName) ?? null) : null;
+
+        let combinedReady = false;
+        for (let i = 0; i < meshInstances.length; i++) {
+            const mi = meshInstances[i];
+            if (!mi?.visible) continue;
+            if (!mi?.aabb) continue;
+            if (rootNode) {
+                const node = mi.node ?? null;
+                if (!node) continue;
+                if (node !== rootNode && !node.isDescendantOf(rootNode)) continue;
+            }
+            if (!combinedReady) {
+                outAabb.copy(mi.aabb);
+                combinedReady = true;
+            } else {
+                outAabb.add(mi.aabb);
+            }
+        }
+        return combinedReady;
+    };
+
+    const createKinematicAabbProxy = (sourceEntity, rootNodeName) => {
+        const proxy = new pc.Entity(`${sourceEntity.name}_${rootNodeName ?? 'model'}_physics_proxy`);
+        app.root.addChild(proxy);
+
+        const aabb = new pc.BoundingBox();
+        const minHalfExtent = 0.02;
+        let initialized = false;
+        let cachedHalfExtents = null;
+
+        const ensureInitialized = () => {
+            if (initialized) return true;
+            if (!app.systems?.rigidbody?.dynamicsWorld) return false;
+            if (!cachedHalfExtents) return false;
+
+            proxy.addComponent('collision', {
+                type: 'box',
+                halfExtents: cachedHalfExtents.clone()
+            });
+            proxy.addComponent('rigidbody', {
+                type: 'kinematic',
+                friction: 0.5,
+                restitution: 0
+            });
+            initialized = true;
+            return true;
+        };
+
+        const update = () => {
+            const ok = computeEntityModelAabb(sourceEntity, aabb, rootNodeName);
+            proxy.enabled = !!(ok && sourceEntity.enabled);
+            if (!proxy.enabled) return;
+
+            const he = aabb.halfExtents;
+            const center = aabb.center;
+
+            if (!cachedHalfExtents) {
+                cachedHalfExtents = new pc.Vec3(
+                    Math.max(he.x, minHalfExtent),
+                    Math.max(he.y, minHalfExtent),
+                    Math.max(he.z, minHalfExtent)
+                );
+            }
+
+            if (!ensureInitialized()) {
+                proxy.setPosition(center);
+                return;
+            }
+
+            proxy.rigidbody.teleport(center.x, center.y, center.z);
+        };
+
+        update();
+        app.on('destroy', () => proxy.destroy());
+
+        return { entity: proxy, update };
+    };
+
+    const createKinematicAabbProxies = (sourceEntity, rootNodeNames) => {
+        const entries = [];
+        for (const name of rootNodeNames) {
+            entries.push(createKinematicAabbProxy(sourceEntity, name ?? null));
+        }
+        return {
+            entity: entries[0]?.entity ?? sourceEntity,
+            update: () => {
+                for (const e of entries) e.update();
+            }
+        };
+    };
+
+    const physicsProxy = (() => {
+        if (!options.physicsProxy) return null;
+        if (Array.isArray(options.physicsProxy)) return createKinematicAabbProxies(entity, options.physicsProxy);
+        return createKinematicAabbProxies(entity, [null]);
+    })();
+
     const state = {
         entity,
         isOn: false,
@@ -751,28 +855,31 @@ const createToggleInteractor = async (options) => {
     };
 
     const update = (dt) => {
-        if (!state.playing || !state.clip) return;
-        state.time += dt;
-        const total = state.speed !== 0 ? state.duration / state.speed : 0;
-        const clamped = total > 0 ? Math.min(state.time, total) : 0;
-        player.apply(state.clip, clamped);
+        if (state.playing && state.clip) {
+            state.time += dt;
+            const total = state.speed !== 0 ? state.duration / state.speed : 0;
+            const clamped = total > 0 ? Math.min(state.time, total) : 0;
+            player.apply(state.clip, clamped);
 
-        if (!state.isOn && options.onCloseTick && total > 0) {
-            options.onCloseTick({
-                time: clamped,
-                total,
-                played: state.soundPlayed,
-                markPlayed: () => {
-                    state.soundPlayed = true;
-                }
-            });
+            if (!state.isOn && options.onCloseTick && total > 0) {
+                options.onCloseTick({
+                    time: clamped,
+                    total,
+                    played: state.soundPlayed,
+                    markPlayed: () => {
+                        state.soundPlayed = true;
+                    }
+                });
+            }
+
+            if (state.time >= total) {
+                state.time = 0;
+                state.playing = false;
+                state.soundPlayed = false;
+            }
         }
 
-        if (state.time >= total) {
-            state.time = 0;
-            state.playing = false;
-            state.soundPlayed = false;
-        }
+        physicsProxy?.update();
     };
 
     return {
@@ -797,6 +904,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'bathroom_door_anim',
     openAnim: 'bathroom_door_openanim.json',
     closeAnim: 'bathroom_door_closeanim.json',
+    physicsProxy: true,
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}bathroom_door_open.wav`, 0.85),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -810,6 +918,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'showerdoors',
     openAnim: 'showerdoors_openanim.json',
     closeAnim: 'showerdoors_closeanim.json',
+    physicsProxy: true,
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}showerdoor_open.wav`, 0.75),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -822,6 +931,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'hallwaycabinetdoors',
     openAnim: 'hallwaycabinetdoors_open_anim.json',
     closeAnim: 'hallwaycabinetdoors_close_anim.json',
+    physicsProxy: ['leftdoor_joint', 'rightdoor_joint'],
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}hallway_cabinet_open.wav`, 0.85),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -846,6 +956,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'stand_l_door',
     openAnim: 'stand_l_door_open_anim.json',
     closeAnim: 'stand_l_door_close_anim.json',
+    physicsProxy: true,
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}hallway_cabinet_open.wav`, 0.65),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -859,6 +970,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'stand_r_door',
     openAnim: 'stand_r_door_open_anim.json',
     closeAnim: 'stand_r_door_close_anim.json',
+    physicsProxy: true,
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}hallway_cabinet_open.wav`, 0.65),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -873,6 +985,7 @@ registerInteractable(await createToggleInteractor({
     openAnim: 'commode_door_l_open_anim.json',
     closeAnim: 'commode_door_l_close_anim.json',
     pickInflate: [0.35, 0.45, 0.35],
+    physicsProxy: true,
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}commode_door_open.wav`, 0.85),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -887,6 +1000,7 @@ registerInteractable(await createToggleInteractor({
     openAnim: 'commode_door_r_open_anim.json',
     closeAnim: 'commode_door_r_close_anim.json',
     pickInflate: [0.35, 0.45, 0.35],
+    physicsProxy: true,
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}commode_door_open.wav`, 0.85),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
@@ -900,6 +1014,7 @@ registerInteractable(await createToggleInteractor({
     entityName: 'refrigerator_door',
     openAnim: 'refrigerator_door_open_anim.json',
     closeAnim: 'refrigerator_door_close_anim.json',
+    physicsProxy: true,
     onOpenSound: () => playOneShotAudio(`${SOUNDS_URL}refrigerator_door_open.wav`, 0.85),
     onCloseTick: (ctx) => {
         if (ctx.played) return;
