@@ -73,22 +73,22 @@ createOptions.soundManager = new pc.SoundManager();
 
 const app = new pc.AppBase(canvas);
 app.init(createOptions);
-app.setCanvasFillMode(pc.FILLMODE_KEEP_ASPECT);
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
 app.setCanvasResolution(pc.RESOLUTION_AUTO);
 
 const ensureCanvasCss = () => {
     const style = document.createElement('style');
-    style.textContent = `@media screen and (min-aspect-ratio: ${APP_WIDTH}/${APP_HEIGHT}) {
-        #application-canvas.fill-mode-KEEP_ASPECT {
-            width: auto;
+    style.textContent = `
+        #application-canvas {
+            width: 100%;
             height: 100%;
-            margin: 0 auto;
+            display: block;
         }
-    }`;
+    `;
     document.head.appendChild(style);
 
     if (canvas.classList) {
-        canvas.classList.add('fill-mode-KEEP_ASPECT');
+        canvas.classList.remove('fill-mode-KEEP_ASPECT');
     }
 
     app.on('destroy', () => {
@@ -97,9 +97,7 @@ const ensureCanvasCss = () => {
 };
 
 const resize = () => {
-    canvas.style.width = '';
-    canvas.style.height = '';
-    app.resizeCanvas(canvas.width, canvas.height);
+    app.resizeCanvas();
 };
 
 window.addEventListener('resize', resize);
@@ -108,6 +106,7 @@ app.on('destroy', () => {
     window.removeEventListener('resize', resize);
     window.removeEventListener('orientationchange', resize);
 });
+resize();
 
 const createToolbar = () => {
     const style = document.createElement('style');
@@ -115,46 +114,80 @@ const createToolbar = () => {
         #staff-home-toolbar {
             position: absolute;
             left: 50%;
-            bottom: 16px;
+            bottom: 26px;
             transform: translateX(-50%);
             display: flex;
-            gap: 10px;
-            padding: 8px;
-            border-radius: 12px;
-            background: rgba(12, 18, 28, 0.72);
-            backdrop-filter: blur(10px);
-            pointer-events: auto;
+            gap: 14px;
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
             user-select: none;
             z-index: 9999;
             font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
             opacity: 0;
             pointer-events: none;
             transition: opacity 200ms ease;
+            box-shadow: none;
         }
         .staff-home-tool {
             appearance: none;
-            border: 1px solid rgba(120, 180, 255, 0.22);
-            background: rgba(18, 28, 44, 0.86);
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(18,24,34,0.88);
             color: rgba(235, 246, 255, 0.9);
-            padding: 8px 14px;
-            border-radius: 10px;
-            font-size: 13px;
+            width: 92px;
+            height: 74px;
+            border-radius: 18px;
+            font-size: 24px;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 4px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+        .staff-home-tool .label {
+            font-size: 11px;
+            letter-spacing: 0.4px;
+            opacity: 0.72;
+        }
+        .staff-home-tool:hover {
+            transform: scale(1.08);
+            background: rgba(60,60,80,0.9);
+        }
+        .staff-home-tool.selected:hover {
+            transform: translateY(-3px) scale(1.08);
+        }
+        .staff-home-tool:focus-visible {
+            outline: 2px solid rgba(146,210,255,0.55);
+            outline-offset: 2px;
         }
         .staff-home-tool.selected {
-            background: rgba(51, 70, 232, 0.92);
-            border-color: rgba(51, 70, 232, 0.92);
+            transform: translateY(-3px);
+        }
+        .staff-home-tool.free-btn:hover,
+        .staff-home-tool.free-btn.selected {
+            background: linear-gradient(180deg, rgba(120,215,170,0.92), rgba(20,88,60,0.92));
+            border-color: rgba(170,245,210,0.44);
+            box-shadow: 0 0 20px rgba(120,215,170,0.28);
+            color: #ffffff;
+        }
+        .staff-home-tool.auto-btn:hover,
+        .staff-home-tool.auto-btn.selected {
+            background: linear-gradient(180deg, rgba(84,170,255,0.92), rgba(14,66,120,0.92));
+            border-color: rgba(146,210,255,0.48);
+            box-shadow: 0 0 22px rgba(84,170,255,0.32);
             color: #ffffff;
         }
         @media (max-width: 640px) {
             #staff-home-toolbar {
-                bottom: 10px;
-                padding: 6px;
-                gap: 8px;
+                bottom: 20px;
+                gap: 10px;
             }
             .staff-home-tool {
-                padding: 7px 12px;
-                font-size: 12px;
+                width: 78px;
+                height: 64px;
+                font-size: 20px;
             }
         }
     `;
@@ -165,13 +198,17 @@ const createToolbar = () => {
 
     const freeBtn = document.createElement('button');
     freeBtn.type = 'button';
-    freeBtn.className = 'staff-home-tool';
-    freeBtn.textContent = '自由参观';
+    freeBtn.className = 'staff-home-tool free-btn';
+    freeBtn.title = '自由参观';
+    freeBtn.setAttribute('aria-label', '自由参观');
+    freeBtn.innerHTML = `🚶<span class="label">自由参观</span>`;
 
     const autoBtn = document.createElement('button');
     autoBtn.type = 'button';
-    autoBtn.className = 'staff-home-tool';
-    autoBtn.textContent = '自动参观';
+    autoBtn.className = 'staff-home-tool auto-btn';
+    autoBtn.title = '自动参观';
+    autoBtn.setAttribute('aria-label', '自动参观');
+    autoBtn.innerHTML = `🎬<span class="label">自动参观</span>`;
 
     toolbar.appendChild(freeBtn);
     toolbar.appendChild(autoBtn);
