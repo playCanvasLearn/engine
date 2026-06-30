@@ -277,7 +277,13 @@ const extraTextureDefs = [
     { id: 295898474, url: 'textures/cubemaps/hallway_mirror/03.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
     { id: 295898585, url: 'textures/cubemaps/hallway_mirror/04.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
     { id: 295898624, url: 'textures/cubemaps/hallway_mirror/05.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
-    { id: 295898600, url: 'textures/cubemaps/hallway_mirror/06.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false }
+    { id: 295898600, url: 'textures/cubemaps/hallway_mirror/06.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898730, url: 'textures/cubemaps/outdoor/right.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898741, url: 'textures/cubemaps/outdoor/left.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898552, url: 'textures/cubemaps/outdoor/top.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898734, url: 'textures/cubemaps/outdoor/bottom.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898553, url: 'textures/cubemaps/outdoor/front.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false },
+    { id: 295898739, url: 'textures/cubemaps/outdoor/back.png', mipmaps: true, anisotropy: 1, srgb: true, rgbm: false }
 ];
 
 for (const def of extraTextureDefs) {
@@ -318,7 +324,16 @@ const hallwayMirrorCubemap = new pc.Asset('hallway_mirror_cubemap', 'cubemap', n
 hallwayMirrorCubemap.id = 295898586;
 app.assets.add(hallwayMirrorCubemap);
 
-await loadAssets([bathroomMirrorCubemap, hallwayMirrorCubemap]);
+const outdoorCubemap = new pc.Asset('outdoor_cubemap', 'cubemap', null, {
+    textures: [295898730, 295898741, 295898552, 295898734, 295898553, 295898739],
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR,
+    magFilter: pc.FILTER_LINEAR,
+    anisotropy: 1
+});
+outdoorCubemap.id = 295898587;
+app.assets.add(outdoorCubemap);
+
+await loadAssets([bathroomMirrorCubemap, hallwayMirrorCubemap, outdoorCubemap]);
 
 const textureFromId = (id) => textureAssets.get(id)?.resource ?? null;
 const mapProperties = new Set([
@@ -398,9 +413,18 @@ for (const def of MODEL_DEFINITIONS) {
 await loadAssets(modelAssets);
 
 app.scene.ambientLight = new pc.Color(...RENDER_SETTINGS.ambient);
-app.scene.envAtlas = envAtlas.resource;
 app.scene.exposure = RENDER_SETTINGS.exposure;
 app.scene.skyboxIntensity = RENDER_SETTINGS.skyboxIntensity;
+const skyboxCubemap = outdoorCubemap.resources?.[0] ?? null;
+if (skyboxCubemap) {
+    app.scene.skybox = skyboxCubemap;
+    const lighting = pc.EnvLighting.generateLightingSource(skyboxCubemap);
+    const atlas = pc.EnvLighting.generateAtlas(lighting);
+    lighting.destroy();
+    app.scene.envAtlas = atlas;
+} else {
+    app.scene.envAtlas = envAtlas.resource;
+}
 app.scene.skyboxMip = 0;
 app.scene.clusteredLightingEnabled = true;
 app.scene.lightmapMode = pc.BAKE_COLORDIR;
@@ -850,14 +874,17 @@ registerInteractable(await createToggleInteractor({
 
 const faucetParticleSetup = new Map([
     ['bathroomsink_faucet', {
+        parent: 'sink_faucet',
         water: 'sink_water_particle',
         spray: 'sink_waterspray_particle'
     }],
     ['bathroomjacuzzi_faucet', {
+        parent: 'jacuzzi_faucet',
         water: 'jacuzzi_water_particle',
         spray: 'jacuzzi_waterspray_particle'
     }],
     ['barsink_faucet', {
+        parent: 'barsink',
         water: 'barsink_water_particle',
         spray: 'barsink_waterspray_particle'
     }]
@@ -1220,7 +1247,7 @@ const particleDefinitions = new Map([
 const ensureFaucetParticles = (faucetName) => {
     const setup = faucetParticleSetup.get(faucetName);
     if (!setup) return null;
-    const parent = app.root.findByName(faucetName);
+    const parent = app.root.findByName(setup.parent);
     if (!parent) return null;
 
     const ensureOne = (particleName) => {
@@ -1362,158 +1389,186 @@ if (!camera) {
     app.root.addChild(camera);
 }
 
+const BLOOM_SAMPLE_COUNT = 15;
+const computeGaussian = (n, theta) => ((1.0 / Math.sqrt(2 * Math.PI * theta)) * Math.exp(-(n * n) / (2 * theta * theta)));
+const calculateBlurValues = (sampleWeights, sampleOffsets, dx, dy, blurAmount) => {
+    sampleWeights[0] = computeGaussian(0, blurAmount);
+    sampleOffsets[0] = 0;
+    sampleOffsets[1] = 0;
+
+    let totalWeights = sampleWeights[0];
+    const len = Math.floor(BLOOM_SAMPLE_COUNT / 2);
+    for (let i = 0; i < len; i++) {
+        const weight = computeGaussian(i + 1, blurAmount);
+        sampleWeights[i * 2] = weight;
+        sampleWeights[i * 2 + 1] = weight;
+        totalWeights += weight * 2;
+
+        const sampleOffset = i * 2 + 1.5;
+        sampleOffsets[i * 4] = dx * sampleOffset;
+        sampleOffsets[i * 4 + 1] = dy * sampleOffset;
+        sampleOffsets[i * 4 + 2] = -dx * sampleOffset;
+        sampleOffsets[i * 4 + 3] = -dy * sampleOffset;
+    }
+
+    for (let i = 0; i < sampleWeights.length; i++) {
+        sampleWeights[i] /= totalWeights;
+    }
+};
+
 class StaffHomeBloomEffect extends pc.PostEffect {
-    constructor(device) {
-        super(device);
-        this.bloomIntensity = 1;
+    constructor(graphicsDevice) {
+        super(graphicsDevice);
+
+        const attributes = {
+            aPosition: pc.SEMANTIC_POSITION
+        };
+
+        const extractFrag = `
+            varying vec2 vUv0;
+            uniform sampler2D uBaseTexture;
+            uniform float uBloomThreshold;
+            void main(void)
+            {
+                vec4 color = texture2D(uBaseTexture, vUv0);
+                gl_FragColor = clamp((color - uBloomThreshold) / (1.0 - uBloomThreshold), 0.0, 1.0);
+            }
+        `;
+
+        const gaussianBlurFrag = `
+            #define SAMPLE_COUNT ${BLOOM_SAMPLE_COUNT}
+            varying vec2 vUv0;
+            uniform sampler2D uBloomTexture;
+            uniform vec2 uBlurOffsets[${BLOOM_SAMPLE_COUNT}];
+            uniform float uBlurWeights[${BLOOM_SAMPLE_COUNT}];
+            void main(void)
+            {
+                vec4 color = vec4(0.0);
+                for (int i = 0; i < SAMPLE_COUNT; i++)
+                {
+                    color += texture2D(uBloomTexture, vUv0 + uBlurOffsets[i]) * uBlurWeights[i];
+                }
+                gl_FragColor = color;
+            }
+        `;
+
+        const combineFrag = `
+            varying vec2 vUv0;
+            uniform float uBloomEffectIntensity;
+            uniform sampler2D uBaseTexture;
+            uniform sampler2D uBloomTexture;
+            void main(void)
+            {
+                vec4 bloom = texture2D(uBloomTexture, vUv0) * uBloomEffectIntensity;
+                vec4 base = texture2D(uBaseTexture, vUv0);
+                base *= (1.0 - clamp(bloom, 0.0, 1.0));
+                gl_FragColor = base + bloom;
+            }
+        `;
+
+        this.extractShader = pc.ShaderUtils.createShader(graphicsDevice, {
+            uniqueName: 'StaffHomeBloomExtractShader',
+            attributes,
+            vertexGLSL: pc.PostEffect.quadVertexShader,
+            fragmentGLSL: extractFrag
+        });
+
+        this.blurShader = pc.ShaderUtils.createShader(graphicsDevice, {
+            uniqueName: 'StaffHomeBloomBlurShader',
+            attributes,
+            vertexGLSL: pc.PostEffect.quadVertexShader,
+            fragmentGLSL: gaussianBlurFrag
+        });
+
+        this.combineShader = pc.ShaderUtils.createShader(graphicsDevice, {
+            uniqueName: 'StaffHomeBloomCombineShader',
+            attributes,
+            vertexGLSL: pc.PostEffect.quadVertexShader,
+            fragmentGLSL: combineFrag
+        });
+
+        this.targets = [];
         this.bloomThreshold = 0.25;
         this.blurAmount = 4;
-        this._resolution = new Float32Array(2);
-        this._direction = new Float32Array(2);
-        this._targets = [];
-
-        const attributes = { aPosition: pc.SEMANTIC_POSITION };
-        const vshader = [
-            'attribute vec2 aPosition;',
-            'varying vec2 vUv;',
-            'void main(void) {',
-            '    vUv = aPosition * 0.5 + 0.5;',
-            '    gl_Position = vec4(aPosition, 0.0, 1.0);',
-            '}'
-        ].join('\n');
-
-        const fExtract = [
-            `precision ${device.precision} float;`,
-            'varying vec2 vUv;',
-            'uniform sampler2D uColorBuffer;',
-            'uniform float uThreshold;',
-            'void main(void) {',
-            '    vec3 c = texture2D(uColorBuffer, vUv).rgb;',
-            '    float l = max(max(c.r, c.g), c.b);',
-            '    float m = step(uThreshold, l);',
-            '    gl_FragColor = vec4(c * m, 1.0);',
-            '}'
-        ].join('\n');
-
-        const fBlur = [
-            `precision ${device.precision} float;`,
-            'varying vec2 vUv;',
-            'uniform sampler2D uBaseTexture;',
-            'uniform vec2 uDirection;',
-            'void main(void) {',
-            '    vec3 result = texture2D(uBaseTexture, vUv).rgb * 0.2270270270;',
-            '    result += texture2D(uBaseTexture, vUv + uDirection * 1.3846153846).rgb * 0.3162162162;',
-            '    result += texture2D(uBaseTexture, vUv - uDirection * 1.3846153846).rgb * 0.3162162162;',
-            '    result += texture2D(uBaseTexture, vUv + uDirection * 3.2307692308).rgb * 0.0702702703;',
-            '    result += texture2D(uBaseTexture, vUv - uDirection * 3.2307692308).rgb * 0.0702702703;',
-            '    gl_FragColor = vec4(result, 1.0);',
-            '}'
-        ].join('\n');
-
-        const fCombine = [
-            `precision ${device.precision} float;`,
-            'varying vec2 vUv;',
-            'uniform sampler2D uSceneTex;',
-            'uniform sampler2D uBloomTex;',
-            'uniform float uIntensity;',
-            'void main(void) {',
-            '    vec3 scene = texture2D(uSceneTex, vUv).rgb;',
-            '    vec3 bloom = texture2D(uBloomTex, vUv).rgb;',
-            '    gl_FragColor = vec4(scene + bloom * uIntensity, 1.0);',
-            '}'
-        ].join('\n');
-
-        this._extractShader = new pc.Shader(device, { attributes, vshader, fshader: fExtract });
-        this._blurShader = new pc.Shader(device, { attributes, vshader, fshader: fBlur });
-        this._combineShader = new pc.Shader(device, { attributes, vshader, fshader: fCombine });
+        this.bloomIntensity = 1;
+        this.sampleWeights = new Float32Array(BLOOM_SAMPLE_COUNT);
+        this.sampleOffsets = new Float32Array(BLOOM_SAMPLE_COUNT * 2);
     }
 
-    _createTarget(width, height, name) {
-        const texture = new pc.Texture(this.device, {
-            name,
-            width,
-            height,
-            format: pc.PIXELFORMAT_R8_G8_B8_A8,
-            mipmaps: false,
-            minFilter: pc.FILTER_LINEAR,
-            magFilter: pc.FILTER_LINEAR,
-            addressU: pc.ADDRESS_CLAMP_TO_EDGE,
-            addressV: pc.ADDRESS_CLAMP_TO_EDGE
-        });
-        return new pc.RenderTarget(this.device, texture, { depth: false });
-    }
-
-    _ensureTargets(inputTarget) {
-        const src = inputTarget?.colorBuffer;
-        if (!src) return false;
-
-        const w = Math.max(1, src.width >> 1);
-        const h = Math.max(1, src.height >> 1);
-
-        const t0 = this._targets[0];
-        if (t0 && t0.colorBuffer?.width === w && t0.colorBuffer?.height === h) return true;
-
-        for (const t of this._targets) {
-            t?.destroy?.();
+    _destroy() {
+        if (this.targets) {
+            for (let i = 0; i < this.targets.length; i++) {
+                this.targets[i].destroyTextureBuffers();
+                this.targets[i].destroy();
+            }
         }
-        this._targets.length = 0;
-        this._targets[0] = this._createTarget(w, h, 'staff-home-bloom-a');
-        this._targets[1] = this._createTarget(w, h, 'staff-home-bloom-b');
-        return true;
+        this.targets.length = 0;
+    }
+
+    _resize(target) {
+        const colorBuffer = target?.colorBuffer ?? target?._colorBuffers?.[0] ?? null;
+        const width = target?.width ?? colorBuffer?.width ?? this.device.width;
+        const height = target?.height ?? colorBuffer?.height ?? this.device.height;
+        if (!width || !height) return;
+        if (width === this.width && height === this.height) return;
+
+        this.width = width;
+        this.height = height;
+        this._destroy();
+
+        for (let i = 0; i < 2; i++) {
+            const colorBuffer = new pc.Texture(this.device, {
+                name: `pe-bloom-${i}`,
+                format: pc.PIXELFORMAT_RGBA8,
+                width: width >> 1,
+                height: height >> 1,
+                mipmaps: false
+            });
+            colorBuffer.minFilter = pc.FILTER_LINEAR;
+            colorBuffer.magFilter = pc.FILTER_LINEAR;
+            colorBuffer.addressU = pc.ADDRESS_CLAMP_TO_EDGE;
+            colorBuffer.addressV = pc.ADDRESS_CLAMP_TO_EDGE;
+            const bloomTarget = new pc.RenderTarget({
+                name: `Bloom Render Target ${i}`,
+                colorBuffer,
+                depth: false
+            });
+            this.targets.push(bloomTarget);
+        }
     }
 
     render(inputTarget, outputTarget, rect) {
-        if (!this._ensureTargets(inputTarget)) return;
+        if (!inputTarget?.colorBuffer) return;
+        this._resize(inputTarget);
 
         const device = this.device;
         const scope = device.scope;
 
-        const tA = this._targets[0];
-        const tB = this._targets[1];
+        scope.resolve('uBloomThreshold').setValue(this.bloomThreshold);
+        scope.resolve('uBaseTexture').setValue(inputTarget.colorBuffer);
+        this.drawQuad(this.targets[0], this.extractShader);
 
-        scope.resolve('uColorBuffer').setValue(inputTarget.colorBuffer);
-        scope.resolve('uThreshold').setValue(this.bloomThreshold);
-        pc.drawFullscreenQuad(device, tA, this.vertexBuffer, this._extractShader, rect);
+        calculateBlurValues(this.sampleWeights, this.sampleOffsets, 1.0 / this.targets[1].width, 0, this.blurAmount);
+        scope.resolve('uBlurWeights[0]').setValue(this.sampleWeights);
+        scope.resolve('uBlurOffsets[0]').setValue(this.sampleOffsets);
+        scope.resolve('uBloomTexture').setValue(this.targets[0].colorBuffer);
+        this.drawQuad(this.targets[1], this.blurShader);
 
-        const passes = Math.max(1, Math.floor(this.blurAmount));
-        this._resolution[0] = 1 / tA.colorBuffer.width;
-        this._resolution[1] = 1 / tA.colorBuffer.height;
+        calculateBlurValues(this.sampleWeights, this.sampleOffsets, 0, 1.0 / this.targets[0].height, this.blurAmount);
+        scope.resolve('uBlurWeights[0]').setValue(this.sampleWeights);
+        scope.resolve('uBlurOffsets[0]').setValue(this.sampleOffsets);
+        scope.resolve('uBloomTexture').setValue(this.targets[1].colorBuffer);
+        this.drawQuad(this.targets[0], this.blurShader);
 
-        for (let i = 0; i < passes; i++) {
-            scope.resolve('uBaseTexture').setValue(tA.colorBuffer);
-            this._direction[0] = this._resolution[0];
-            this._direction[1] = 0;
-            scope.resolve('uDirection').setValue(this._direction);
-            pc.drawFullscreenQuad(device, tB, this.vertexBuffer, this._blurShader, rect);
-
-            scope.resolve('uBaseTexture').setValue(tB.colorBuffer);
-            this._direction[0] = 0;
-            this._direction[1] = this._resolution[1];
-            scope.resolve('uDirection').setValue(this._direction);
-            pc.drawFullscreenQuad(device, tA, this.vertexBuffer, this._blurShader, rect);
-        }
-
-        scope.resolve('uSceneTex').setValue(inputTarget.colorBuffer);
-        scope.resolve('uBloomTex').setValue(tA.colorBuffer);
-        scope.resolve('uIntensity').setValue(this.bloomIntensity);
-        pc.drawFullscreenQuad(device, outputTarget, this.vertexBuffer, this._combineShader, rect);
+        scope.resolve('uBloomEffectIntensity').setValue(this.bloomIntensity);
+        scope.resolve('uBloomTexture').setValue(this.targets[0].colorBuffer);
+        scope.resolve('uBaseTexture').setValue(inputTarget.colorBuffer);
+        this.drawQuad(outputTarget, this.combineShader, rect);
     }
 }
 
-const ENABLE_POST_EFFECTS = false;
-
 const ensurePostEffects = () => {
-    if (!ENABLE_POST_EFFECTS) return;
-    const cameraComponent = camera?.camera;
-    if (!cameraComponent) return;
-
-    const postEffects = cameraComponent.postEffects;
-    if (!pc.PostEffect || !pc.Shader || !pc.drawFullscreenQuad) return;
-    const bloom = new StaffHomeBloomEffect(app.graphicsDevice);
-    bloom.bloomIntensity = 1;
-    bloom.bloomThreshold = 0.25;
-    bloom.blurAmount = 4;
-    postEffects.addEffect(bloom);
+    return;
 };
 ensurePostEffects();
 
