@@ -876,17 +876,23 @@ const faucetParticleSetup = new Map([
     ['bathroomsink_faucet', {
         parent: 'sink_faucet',
         water: 'sink_water_particle',
-        spray: 'sink_waterspray_particle'
+        spray: 'sink_waterspray_particle',
+        waterTarget: [2.852, 1.088, 2.465],
+        sprayTarget: [2.852, 0.834, 2.465]
     }],
     ['bathroomjacuzzi_faucet', {
         parent: 'jacuzzi_faucet',
         water: 'jacuzzi_water_particle',
-        spray: 'jacuzzi_waterspray_particle'
+        spray: 'jacuzzi_waterspray_particle',
+        waterTarget: [4.562, 0.76, 5.64],
+        sprayTarget: [4.558, 0.133, 5.65]
     }],
     ['barsink_faucet', {
         parent: 'barsink',
         water: 'barsink_water_particle',
-        spray: 'barsink_waterspray_particle'
+        spray: 'barsink_waterspray_particle',
+        waterTarget: [-4.575, 1.506, -1.182],
+        sprayTarget: [-4.575, 1.197, -1.182]
     }]
 ]);
 
@@ -1256,10 +1262,16 @@ const ensureFaucetParticles = (faucetName) => {
             if (!existing.model) {
                 existing.addComponent('model', {
                     enabled: false,
+                    isStatic: false,
                     type: 'capsule',
+                    asset: null,
+                    materialAsset: null,
                     castShadows: false,
+                    castShadowsLightmap: false,
                     receiveShadows: false,
                     lightmapped: false,
+                    lightmapSizeMultiplier: 1,
+                    batchGroupId: null,
                     layers: [0]
                 });
             }
@@ -1273,10 +1285,16 @@ const ensureFaucetParticles = (faucetName) => {
         entity.setLocalScale(def.scale[0], def.scale[1], def.scale[2]);
         entity.addComponent('model', {
             enabled: false,
+            isStatic: false,
             type: 'capsule',
+            asset: null,
+            materialAsset: null,
             castShadows: false,
+            castShadowsLightmap: false,
             receiveShadows: false,
             lightmapped: false,
+            lightmapSizeMultiplier: 1,
+            batchGroupId: null,
             layers: [0]
         });
         entity.addComponent('particlesystem', def.data);
@@ -1286,6 +1304,16 @@ const ensureFaucetParticles = (faucetName) => {
 
     const waterEntity = ensureOne(setup.water);
     const sprayEntity = ensureOne(setup.spray);
+    if (waterEntity && Array.isArray(setup.waterTarget)) {
+        waterEntity.setPosition(setup.waterTarget[0], setup.waterTarget[1], setup.waterTarget[2]);
+        waterEntity.particlesystem?.reset?.();
+        waterEntity.particlesystem?.stop?.();
+    }
+    if (sprayEntity && Array.isArray(setup.sprayTarget)) {
+        sprayEntity.setPosition(setup.sprayTarget[0], setup.sprayTarget[1], setup.sprayTarget[2]);
+        sprayEntity.particlesystem?.reset?.();
+        sprayEntity.particlesystem?.stop?.();
+    }
     return {
         water: waterEntity?.particlesystem ?? null,
         spray: sprayEntity?.particlesystem ?? null
@@ -1293,26 +1321,73 @@ const ensureFaucetParticles = (faucetName) => {
 };
 
 const createFaucetInteractor = async (entityName, openAnim, closeAnim) => {
-    const loop = createLoopAudio(`${SOUNDS_URL}sinkwater_loop.wav`, 0.6);
+    const entity = app.root.findByName(entityName);
+    if (!entity?.model?.model) return null;
+
+    const openClip = await loadLegacyAnim(openAnim);
+    const closeClip = await loadLegacyAnim(closeAnim);
+    const player = createLegacyAnimPlayer(entity);
+
     const particles = ensureFaucetParticles(entityName);
-    return createToggleInteractor({
-        entityName,
-        openAnim,
-        closeAnim,
-        onOpenSound: () => {
-            particles?.water?.reset?.();
-            particles?.spray?.reset?.();
-            particles?.water?.play?.();
-            particles?.spray?.play?.();
-            loop.play();
-        },
-        onCloseStart: () => {
-            particles?.water?.stop?.();
-            particles?.spray?.stop?.();
+    const loop = createLoopAudio(`${SOUNDS_URL}sinkwater_loop.wav`, 0.6);
+
+    const state = {
+        entity,
+        isTurnedOn: false,
+        animationIsPlaying: false,
+        animationDurationSeconds: 0,
+        animationSpeed: 0,
+        animationTimeSeconds: 0,
+        soundIsPlaying: false,
+        clip: null
+    };
+
+    const trigger = () => {
+        if (state.animationIsPlaying) return;
+
+        const clip = state.isTurnedOn ? closeClip : openClip;
+        state.clip = clip;
+        state.animationIsPlaying = true;
+        state.animationDurationSeconds = clip.duration;
+        state.animationSpeed = 1;
+        state.animationTimeSeconds = 0;
+
+        if (state.isTurnedOn) {
             loop.stop();
             playOneShotAudio(`${SOUNDS_URL}sinkwater_off.wav`, 0.75);
+            particles?.water?.stop?.();
+            particles?.spray?.stop?.();
+        } else {
+            particles?.water?.play?.();
+            particles?.spray?.play?.();
+            if (!state.soundIsPlaying) {
+                state.soundIsPlaying = true;
+                loop.play();
+            }
         }
-    });
+
+        state.isTurnedOn = !state.isTurnedOn;
+        player.apply(state.clip, 0);
+    };
+
+    const update = (dt) => {
+        if (!state.animationIsPlaying || !state.clip) return;
+        if (state.animationSpeed === 0) return;
+
+        const total = state.animationDurationSeconds / state.animationSpeed;
+        state.animationTimeSeconds += dt;
+
+        const t = total > 0 ? Math.min(state.animationTimeSeconds, total) : 0;
+        player.apply(state.clip, t);
+
+        if (state.animationTimeSeconds >= total) {
+            state.animationTimeSeconds = 0;
+            state.animationIsPlaying = false;
+            state.soundIsPlaying = false;
+        }
+    };
+
+    return { entity: state.entity, trigger, update, isBusy: () => state.animationIsPlaying };
 };
 
 registerInteractable(await createFaucetInteractor(
